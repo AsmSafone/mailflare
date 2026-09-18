@@ -81,7 +81,7 @@ export function MessageListRowActions({ message, onAction }: MessageListRowActio
 							<Input id={`snooze-until-${message.id}`} type="datetime-local" value={snoozedUntil} onChange={(event) => setSnoozedUntil(event.target.value)} />
 						</div>
 						{error && <p className="text-sm text-red-600">{error}</p>}
-						<Button type="button" onClick={() => void handleSnooze()} disabled={snoozing}>
+						<Button type="button" className="w-full" onClick={() => void handleSnooze()} disabled={snoozing}>
 							{snoozing ? "Snoozing..." : "Snooze"}
 						</Button>
 					</div>

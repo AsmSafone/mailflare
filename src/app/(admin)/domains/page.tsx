@@ -224,6 +224,7 @@ export default function DomainsPage() {
                 </div>
               )}
               <Button
+                className="w-full"
                 onClick={() => create.mutate()}
                 disabled={!hostname || domainChecking || create.isPending}
               >

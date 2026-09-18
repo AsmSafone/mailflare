@@ -237,6 +237,7 @@ export function DashboardNav({ className }: { className?: string }) {
                   </div>
                   <Button
                     type="submit"
+                    className="w-full"
                     disabled={addingFolder || !newFolderName.trim()}
                   >
                     {addingFolder ? "Creating..." : "Create folder"}

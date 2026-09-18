@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
-import { Folder, Server, Upload } from "lucide-react";
+import { ChevronDown, Folder, Server, Upload } from "lucide-react";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -211,8 +211,6 @@ export default function SettingsImportPage() {
                 onChange={(event) =>
                   setActiveTab(event.target.value as ImportTab)
                 }
-                className="text-sm w-full py-2"
-                // className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 shadow-sm shadow-neutral-200/50 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
                 <option value="file">Backup File</option>
                 <option value="imap">IMAP</option>
@@ -225,18 +223,18 @@ export default function SettingsImportPage() {
                 <button
                   type="button"
                   onClick={() => setSourceDropdownOpen((open) => !open)}
-                  className="flex w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-left text-sm shadow-sm shadow-neutral-200/50"
+                  className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-left text-sm shadow-sm transition-all hover:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                 >
-                  <label className="flex-1">Selected</label>
-                  <span className="truncate">{sourceSummary}</span>
-                  <span className="text-neutral-400 px-2">▾</span>
+                  <span className="font-medium text-neutral-800">Selected</span>
+                  <span className="truncate text-neutral-500">{sourceSummary}</span>
+                  <ChevronDown className="h-4 w-4 text-neutral-400" />
                 </button>
                 {sourceDropdownOpen && (
-                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+                  <div className="absolute z-20 mt-2 w-full rounded-2xl border border-neutral-200 bg-white p-2 shadow-xl shadow-neutral-900/10">
                     {importSourceOptions.map((option) => (
                       <label
                         key={option.value}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 cursor-pointer"
                       >
                         <Checkbox
                           checked={selectedSections.includes(option.value)}

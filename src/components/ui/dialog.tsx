@@ -16,16 +16,16 @@ export function DialogContent({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
 	return (
 		<DialogPrimitive.Portal>
-			<DialogPrimitive.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+			<DialogPrimitive.Overlay className="dialog-overlay fixed inset-0 z-50 bg-neutral-950/40 backdrop-blur-sm" />
 			<DialogPrimitive.Content
 				className={cn(
-					"dialog-content fixed left-1/2 top-1/2 z-50 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl",
+					"dialog-content fixed left-1/2 top-1/2 z-50 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-neutral-100 bg-white p-6 shadow-2xl shadow-neutral-950/15 sm:p-7 focus:outline-none",
 					className,
 				)}
 				{...props}
 			>
 				{children}
-				<DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">
+				<DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
 					<X className="h-4 w-4" />
 					<span className="sr-only">Close</span>
 				</DialogPrimitive.Close>
@@ -42,12 +42,12 @@ export function DialogTitle({
 	className,
 	...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
-	return <DialogPrimitive.Title className={cn("text-lg font-semibold text-neutral-900", className)} {...props} />;
+	return <DialogPrimitive.Title className={cn("text-xl font-semibold tracking-tight text-neutral-900", className)} {...props} />;
 }
 
 export function DialogDescription({
 	className,
 	...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
-	return <DialogPrimitive.Description className={cn("text-sm text-neutral-500", className)} {...props} />;
+	return <DialogPrimitive.Description className={cn("text-sm text-neutral-500 leading-relaxed", className)} {...props} />;
 }

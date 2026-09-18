@@ -51,7 +51,8 @@ export function BulkMessageToolbar({
 			<span className="flex-1" />
 			<Tooltip label="Move selected messages">
 					<Select
-						className="bg-white text-xs font-medium py-2 text-neutral-700 outline-none"
+						containerClassName="w-32"
+						className="h-8 text-xs pl-2.5 pr-7 py-1"
 						disabled={pending}
 						defaultValue=""
 						aria-label="Move selected messages"

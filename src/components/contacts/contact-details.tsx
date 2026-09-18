@@ -141,6 +141,7 @@ export function ContactDetailsTrigger({
 						{error && <p className="text-sm text-red-600">{error}</p>}
 						<Button
 							type="button"
+							className="w-full"
 							onClick={saveContact}
 							disabled={loading || saving || !displayName.trim()}
 						>

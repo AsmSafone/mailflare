@@ -260,7 +260,7 @@ export default function MailboxSettingsPage() {
             <Select
               value={aliasDomainId}
               onChange={(event) => setAliasDomainId(event.target.value)}
-              className="h-10 min-w-0 flex-1 text-sm"
+              containerClassName="flex-1 min-w-0"
               disabled={addAlias.isPending}
             >
               {(aliases.data?.availableDomains ?? []).map((domain) => (
@@ -342,7 +342,7 @@ export default function MailboxSettingsPage() {
               <Select
                 value={selectedUserId}
                 onChange={(event) => setSelectedUserId(event.target.value)}
-                className="h-10 min-w-0 flex-1 text-sm"
+                containerClassName="flex-1 min-w-0"
               >
                 <option value="">Choose an account</option>
                 {(sharedAccess.data?.availableUsers ?? [])

@@ -223,7 +223,6 @@ export default function BackupsPage() {
                                   : null,
                           });
                         }}
-                        className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
                       >
                         <option value="daily">Daily</option>
                         <option value="weekly">Selected day of week</option>
@@ -243,7 +242,6 @@ export default function BackupsPage() {
                               scheduleValue: Number(event.target.value),
                             })
                           }
-                          className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
                         >
                           {WEEKDAYS.map((day) => (
                             <option key={day.value} value={day.value}>
