@@ -2,6 +2,10 @@ import { createDnsRecord, deleteDnsRecord, listMxRecords } from "@/lib/cloudflar
 import type { CfDnsRecord } from "@/lib/cloudflare-api.types";
 import type { CloudflareDnsRecordCreate } from "@/lib/cloudflare-dns.types";
 
+function isCloudflareEmailRoutingMx(record: CfDnsRecord): boolean {
+	return record.content?.toLowerCase().endsWith(".mx.cloudflare.net") ?? false;
+}
+
 function toCreateInput(record: CfDnsRecord): CloudflareDnsRecordCreate {
 	if (!record.name || !record.content || record.priority === undefined) {
 		throw new Error("Cloudflare returned an incomplete MX record");
@@ -25,13 +29,24 @@ export async function removeMxRecords(
 	hostname: string,
 	deleted: CfDnsRecord[],
 ): Promise<void> {
-	const records = await listMxRecords(env, zoneId, hostname);
+	const records = (await listMxRecords(env, zoneId, hostname)).filter(
+		(record) => !isCloudflareEmailRoutingMx(record),
+	);
 
 	for (const record of records) {
 		if (!record.id) throw new Error("Cloudflare returned an MX record without an id");
 		await deleteDnsRecord(env, zoneId, record.id);
 		deleted.push(record);
 	}
+}
+
+export async function hasConflictingMxRecords(
+	env: CloudflareEnv,
+	zoneId: string,
+	hostname: string,
+): Promise<boolean> {
+	const records = await listMxRecords(env, zoneId, hostname);
+	return records.some((record) => !isCloudflareEmailRoutingMx(record));
 }
 
 export async function restoreMxRecords(

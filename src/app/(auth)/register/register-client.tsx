@@ -6,12 +6,14 @@ import { AlertTriangle, ArrowRight, CheckCircle2, LoaderCircle, MailPlus, XCircl
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TurnstileField } from "@/components/auth/turnstile";
 import {
   getSetupStatus,
+  checkExistingMx,
   prepareSetup,
   submitPrimaryDomain,
   submitRegistration,
@@ -36,13 +38,48 @@ export function RegisterClient() {
   const [databaseMigrated, setDatabaseMigrated] = useState(false);
   const [preparationComplete, setPreparationComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mxConflict, setMxConflict] = useState(false);
+  const [mxChecking, setMxChecking] = useState(true);
+  const [mxRecordsExist, setMxRecordsExist] = useState<boolean | null>(null);
+  const [replaceMxRecords, setReplaceMxRecords] = useState(false);
+  const [mxCheckRevision, setMxCheckRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [turnstileReset, setTurnstileReset] = useState(0);
 
   useEffect(() => {
     void runPreparation();
   }, []);
+
+  const accountDomain = setupDomain ?? primaryDomain;
+
+  useEffect(() => {
+    if (step !== 3 || !accountDomain) return;
+
+    let active = true;
+    setMxChecking(true);
+    setMxRecordsExist(null);
+    setReplaceMxRecords(false);
+    setError(null);
+
+    void checkExistingMx(accountDomain)
+      .then(({ ok, data }) => {
+        if (!active) return;
+        setMxChecking(false);
+        if (!ok || data.hasExistingMx === undefined) {
+          setError(typeof data.error === "string" ? data.error : "Could not check existing MX records");
+          return;
+        }
+        setMxRecordsExist(data.hasExistingMx);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMxChecking(false);
+        setError(error instanceof Error ? error.message : "Could not check existing MX records");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [step, accountDomain, mxCheckRevision]);
 
   async function runPreparation() {
     setLoading(true);
@@ -119,8 +156,6 @@ export function RegisterClient() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const replaceMxRecords = submitter?.value === "true";
     const domain = setupDomain ?? primaryDomain;
     if (!domain) {
       setLoading(false);
@@ -139,7 +174,8 @@ export function RegisterClient() {
     setLoading(false);
     if (!ok) {
       if (data.code === "MX_RECORDS_CONFLICT") {
-        setMxConflict(true);
+        setMxRecordsExist(true);
+        setReplaceMxRecords(false);
         setError(null);
         setTurnstileReset((value) => value + 1);
         return;
@@ -150,10 +186,9 @@ export function RegisterClient() {
       setTurnstileReset((value) => value + 1);
       return;
     }
-    router.push(data.redirect ?? "/inbox");
+    window.location.assign(data.redirect ?? "/login");
   }
 
-  const accountDomain = setupDomain ?? primaryDomain;
   const showDomainStep = hasPrimaryDomain === false && step === 2;
 
   if (hasAdminAccount === true) {
@@ -324,6 +359,36 @@ export function RegisterClient() {
         </form>
       ) : (
         <form method="post" onSubmit={onSubmit} className="space-y-5">
+					{mxChecking && (
+						<div className="flex items-center gap-3 rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+							<LoaderCircle className="h-4 w-4 animate-spin" />
+							Checking existing MX records
+						</div>
+					)}
+					{mxRecordsExist === false && (
+						<div className="flex items-center gap-3 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+							<CheckCircle2 className="h-4 w-4" />
+							No existing MX records found
+						</div>
+					)}
+					{mxRecordsExist === true && (
+						<label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900">
+							<Checkbox
+								checked={replaceMxRecords}
+								onChange={(event) => setReplaceMxRecords(event.target.checked)}
+								className="mt-1"
+							/>
+							<span>
+								<span className="flex items-center gap-2 text-sm font-medium">
+									<AlertTriangle className="h-4 w-4" />
+									Replace existing MX records
+								</span>
+								<span className="mt-1 block text-xs leading-5">
+									This deletes the current mail provider's MX records and replaces them with Cloudflare Email Routing. The previous provider will stop receiving mail.
+								</span>
+							</span>
+						</label>
+					)}
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 relative">
@@ -369,27 +434,23 @@ export function RegisterClient() {
               {error}
             </p>
           )}
-					{mxConflict && (
-						<div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900">
-							<div className="flex items-start gap-3">
-								<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-								<p className="text-sm leading-6">
-									Existing MX records deliver mail to another provider. Continuing deletes those records and replaces them with Cloudflare Email Routing, so the previous provider will stop receiving mail.
-								</p>
-							</div>
-						</div>
+					{!mxChecking && mxRecordsExist === null && (
+						<Button
+							type="button"
+							variant="outline"
+							className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
+							onClick={() => setMxCheckRevision((value) => value + 1)}
+						>
+							Check MX records again
+						</Button>
 					)}
           <TurnstileField resetSignal={turnstileReset} />
 					<Button
 						type="submit"
-						name={mxConflict ? "replaceMxRecords" : undefined}
-						value={mxConflict ? "true" : undefined}
 						className="h-11 w-full rounded-full px-6 active:scale-[0.98] mt-8"
-						disabled={loading || hasAdminAccount === null || hasPrimaryDomain === null}
+						disabled={loading || mxChecking || mxRecordsExist === null || (mxRecordsExist && !replaceMxRecords) || hasAdminAccount === null || hasPrimaryDomain === null}
 					>
-						{loading
-							? mxConflict ? "Replacing MX records..." : "Creating..."
-							: mxConflict ? "Delete MX records and create account" : "Create account"}
+						{loading ? "Creating..." : "Create account"}
 					</Button>
         </form>
       )}
