@@ -7,7 +7,6 @@ import {
   Mail,
   Settings,
   Palette,
-  BadgeDollarSign,
   Users,
   Route,
   Webhook,
@@ -15,7 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 import { NavItem } from "./components-nav";
 import { SidebarFooter } from "./sidebar-footer";
-import { useBranding } from "./branding-provider";
 import { SidebarHeader } from "./sidebar-header";
 import { useSidebar } from "./sidebar-state";
 
@@ -45,14 +43,12 @@ const sections = [
     label: "Product",
     links: [
       { href: "/branding", label: "Branding", icon: Palette },
-      { href: "/licenses", label: "Licenses", icon: BadgeDollarSign },
       // { href: "/api-keys", label: "API Keys", icon: KeyRound },
     ],
   },
 ];
 
 export function AdminNav({ className }: { className?: string }) {
-  const branding = useBranding();
   const { minimal } = useSidebar();
 
   return (
@@ -60,10 +56,7 @@ export function AdminNav({ className }: { className?: string }) {
       <SidebarHeader href="/inbox" label="Admin" />
       <div className={cn("space-y-4", minimal && "space-y-2")}>
         {sections.map((section) => {
-          const links = section.links.filter(
-            (link) =>
-              link.href !== "/branding" || branding.canCustomizeBranding,
-          );
+          const links = section.links;
           if (links.length === 0) return null;
 
           return (

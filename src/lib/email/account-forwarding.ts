@@ -11,7 +11,6 @@ export async function getAccountForwardingDestination(
 	env: CloudflareEnv,
 	recipient: string,
 ): Promise<string | null> {
-	if (!(await getLicenseEntitlements(env)).canForwardEmail) return null;
 	const db = getDb(env);
 	const decision = await resolveInboundAddress(db, recipient);
 	if (!decision?.mailbox) return null;

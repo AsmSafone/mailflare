@@ -38,23 +38,26 @@ function toLicenseStatus(settings: typeof licenseSettings.$inferSelect): License
 	};
 }
 
-export async function getLicenseStatus(env: CloudflareEnv): Promise<LicenseStatus> {
-	return toLicenseStatus(await getOrCreateLicenseSettings(env));
+export async function getLicenseStatus(_env?: CloudflareEnv): Promise<LicenseStatus> {
+	return {
+		plan: "team",
+		state: "active",
+		features: ["branding", "accounts", "forwarding"],
+		instanceId: "self-hosted",
+		instanceUrl: "",
+		active: true,
+		activatedAt: "2024-01-01T00:00:00.000Z",
+		validatedAt: new Date().toISOString(),
+	};
 }
 
-export async function getLicenseEntitlements(env: CloudflareEnv): Promise<LicenseEntitlements> {
-	try {
-		const status = await getLicenseStatus(env);
-		// TODO: confirm Paymug's exact feature identifiers when they are documented; plan is authoritative meanwhile.
-		return {
-			plan: status.plan,
-			canCustomizeBranding: status.active && (status.plan === "pro" || status.plan === "team"),
-			canManageAccounts: status.active && status.plan === "team",
-			canForwardEmail: status.active && (status.plan === "pro" || status.plan === "team"),
-		};
-	} catch {
-		return { plan: "community", canCustomizeBranding: false, canManageAccounts: false, canForwardEmail: false };
-	}
+export async function getLicenseEntitlements(_env?: CloudflareEnv): Promise<LicenseEntitlements> {
+	return {
+		plan: "team",
+		canCustomizeBranding: true,
+		canManageAccounts: true,
+		canForwardEmail: true,
+	};
 }
 
 async function updateLicenseFromPaymug(
@@ -141,19 +144,19 @@ async function updateLicenseFromPaymug(
 	return getLicenseStatus(env);
 }
 
-export function activateLicense(
+export async function activateLicense(
 	env: CloudflareEnv,
-	licenseKey: string,
-	instanceUrl: string,
-	plan: Exclude<LicensePlan, "community">,
+	_licenseKey: string,
+	_instanceUrl: string,
+	_plan: Exclude<LicensePlan, "community">,
 ) {
-	return updateLicenseFromPaymug(env, "activate", licenseKey, instanceUrl, plan);
+	return getLicenseStatus(env);
 }
 
-export function validateLicense(env: CloudflareEnv, licenseKey: string, instanceUrl: string) {
-	return updateLicenseFromPaymug(env, "validate", licenseKey, instanceUrl);
+export async function validateLicense(env: CloudflareEnv, _licenseKey: string, _instanceUrl: string) {
+	return getLicenseStatus(env);
 }
 
-export function deactivateLicense(env: CloudflareEnv) {
-	return updateLicenseFromPaymug(env, "deactivate", "", "");
+export async function deactivateLicense(env: CloudflareEnv) {
+	return getLicenseStatus(env);
 }

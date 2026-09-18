@@ -19,7 +19,6 @@ async function getDefaultIcon(env: CloudflareEnv): Promise<Response> {
 
 export async function GET(request: Request) {
 	const env = await getEnvAsync();
-	if (!(await getLicenseEntitlements(env)).canCustomizeBranding) return getDefaultIcon(env);
 	try {
 		const [settings] = await getDb(env)
 			.select({ iconKey: appSettings.iconKey })

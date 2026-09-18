@@ -1,6 +1,5 @@
-import { Check, ExternalLink } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,74 +7,54 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { LicenseActivation } from "./license-activation";
-import { LICENSE_PLANS } from "./utils";
+
+const UNLOCKED_FEATURES = [
+  "Custom application branding and app icon customization",
+  "Unlimited user accounts with delegated access",
+  "Shared inboxes and mailboxes",
+  "Account-level and domain-level email forwarding",
+  "Full API, Webhook, and JMAP access",
+  "Custom domain routing rules and storage rules",
+];
 
 export default function LicensesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-medium text-neutral-900">Licenses</h1>
+        <h1 className="text-3xl font-medium text-neutral-900">License & Editions</h1>
         <p className="mt-2 text-sm text-neutral-500">
-          Choose a one-time license. Each purchase includes updates released
-          during the first year.
+          All features and capabilities are fully unlocked for this installation.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {LICENSE_PLANS.map((plan) => {
-          const Icon = plan.icon;
-          return (
-            <Card
-              key={plan.name}
-              className="rounded-3xl border-0 bg-white p-6 flex flex-col"
-            >
-              <CardHeader className="space-y-4 py-0">
-                <div className="flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                </div>
-                <div className="relative">
-                  <CardTitle>{plan.name}</CardTitle>
-                  <p className="mt-2 text-6xl text-neutral-950 flex">
-                    <span className="text-[12px] mt-2">$</span>
-                    <b>{plan.price}</b>
-                    {plan.originalPrice && (
-                      <span className="absolute right-0 bottom-6 line-through text-base opacity-40">
-                        ${plan.originalPrice}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <CardDescription>{plan.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-6 flex flex-col flex-1 min-h-0">
-                {plan.features.map((feature) => (
-                  <p
-                    key={feature}
-                    className="flex gap-2 text-sm text-neutral-600"
-                  >
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                    {feature}
-                  </p>
-                ))}
-                <span className="flex-1" />
-                <Button asChild className="mt-4 w-full">
-                  <a
-                    href={plan.checkoutUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Get {plan.name}
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-      <LicenseActivation />
+
+      <Card className="rounded-3xl border-0 bg-white p-6">
+        <CardHeader className="py-0">
+          <div className="flex items-center justify-between">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <ShieldCheck className="h-6 w-6" />
+            </span>
+            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-0 text-sm font-medium px-3 py-1">
+              Team Edition · Active
+            </Badge>
+          </div>
+          <div className="pt-3">
+            <CardTitle className="text-2xl">Full Features Unlocked</CardTitle>
+            <CardDescription className="mt-1">
+              This installation has complete access to all Mailflare features without requiring any external license keys.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {UNLOCKED_FEATURES.map((feature) => (
+              <div key={feature} className="flex items-start gap-2.5 text-sm text-neutral-700">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

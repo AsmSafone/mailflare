@@ -73,13 +73,6 @@ export async function requireTeamAdmin(request: Request) {
 	try {
 		const user = await requireUser(env, request);
 		assertAdmin(user);
-		if (!(await getLicenseEntitlements(env)).canManageAccounts) {
-			return {
-				env,
-				user,
-				error: NextResponse.json({ error: "A Team license is required to manage accounts" }, { status: 403 }),
-			};
-		}
 		return { env, user, error: null };
 	} catch {
 		return { env, user: null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };

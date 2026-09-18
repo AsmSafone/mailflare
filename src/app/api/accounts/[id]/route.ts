@@ -43,10 +43,6 @@ export async function PATCH(request: Request, { params }: AccountRouteParams) {
 	}
 	const parsed = updateManagedAccountSchema.safeParse(await request.json());
 	if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-	const canForwardEmail = (await getLicenseEntitlements(access.env)).canForwardEmail;
-	if (!canForwardEmail && parsed.data.forwardingEmail && parsed.data.forwardingEmail !== account.forwardingEmail) {
-		return NextResponse.json({ error: "A Pro or Team license is required for email forwarding" }, { status: 403 });
-	}
 	await updateAccountCredentials(db, id, { name: parsed.data.name, password: parsed.data.password ?? null });
 	// A password set by an admin is a reset: whoever held the old one is signed out.
 	if (parsed.data.password) await deleteUserSessions(access.env, id);

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 				: {}),
 			senderAddresses: await getMailboxDomainAddresses(db, mailbox),
 		}))),
-		canCreateShared: user.role === "admin" && entitlements.canManageAccounts,
+		canCreateShared: user.role === "admin",
 	});
 }
 
@@ -40,9 +40,8 @@ export async function POST(request: Request) {
 	const db = getDb(env);
 	const mailboxType = parsed.data.type ?? "personal";
 	if (mailboxType === "shared") {
-		const entitlements = await getLicenseEntitlements(env);
-		if (user.role !== "admin" || !entitlements.canManageAccounts) {
-			return NextResponse.json({ error: "A Team license is required to create shared inboxes" }, { status: 403 });
+		if (user.role !== "admin") {
+			return NextResponse.json({ error: "Only admins can create shared inboxes" }, { status: 403 });
 		}
 	}
 	const ownerUserId = mailboxType === "shared" ? user.id : parsed.data.ownerUserId ?? user.id;
