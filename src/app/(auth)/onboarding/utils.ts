@@ -24,11 +24,12 @@ export async function checkDomain(hostname: string): Promise<DomainPreflightResp
 export async function createDomain(
 	hostname: string,
 	enableSending: boolean,
+	replaceMxRecords = false,
 ): Promise<{ ok: boolean; data: DomainCreateResult }> {
 	const res = await authFetch("/api/domains", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ hostname, enableRouting: true, enableSending }),
+		body: JSON.stringify({ hostname, enableRouting: true, enableSending, replaceMxRecords }),
 	});
 
 	return {

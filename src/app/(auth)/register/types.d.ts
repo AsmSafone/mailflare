@@ -31,4 +31,5 @@ export type RegisterResult = {
 	token?: string;
 	redirect?: string;
 	error?: string;
+	code?: "MX_RECORDS_CONFLICT";
 };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, LoaderCircle, MailPlus, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, LoaderCircle, MailPlus, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function RegisterClient() {
   const [databaseMigrated, setDatabaseMigrated] = useState(false);
   const [preparationComplete, setPreparationComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mxConflict, setMxConflict] = useState(false);
   const [loading, setLoading] = useState(false);
   const [turnstileReset, setTurnstileReset] = useState(0);
 
@@ -89,7 +90,7 @@ export function RegisterClient() {
       return;
     }
     setSetupDomain(data.domain.hostname);
-    setSetupEnableSending(usedCachedCheck ? enableSending : true);
+    setSetupEnableSending(usedCachedCheck ? enableSending : false);
     setStep(3);
   }
 
@@ -109,7 +110,7 @@ export function RegisterClient() {
     }
 
     setDomainCheck(data.domain);
-    setEnableSending(true);
+    setEnableSending(false);
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -118,6 +119,8 @@ export function RegisterClient() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const replaceMxRecords = submitter?.value === "true";
     const domain = setupDomain ?? primaryDomain;
     if (!domain) {
       setLoading(false);
@@ -131,9 +134,16 @@ export function RegisterClient() {
       enableSending: setupDomain
         ? setupEnableSending
         : primaryDomainSendingRequested ?? undefined,
+      replaceMxRecords,
     });
     setLoading(false);
     if (!ok) {
+      if (data.code === "MX_RECORDS_CONFLICT") {
+        setMxConflict(true);
+        setError(null);
+        setTurnstileReset((value) => value + 1);
+        return;
+      }
       setError(
         typeof data.error === "string" ? data.error : "Registration failed",
       );
@@ -359,14 +369,28 @@ export function RegisterClient() {
               {error}
             </p>
           )}
+					{mxConflict && (
+						<div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900">
+							<div className="flex items-start gap-3">
+								<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+								<p className="text-sm leading-6">
+									Existing MX records deliver mail to another provider. Continuing deletes those records and replaces them with Cloudflare Email Routing, so the previous provider will stop receiving mail.
+								</p>
+							</div>
+						</div>
+					)}
           <TurnstileField resetSignal={turnstileReset} />
-          <Button
-            type="submit"
-            className="h-11 w-full rounded-full px-6 active:scale-[0.98] mt-8"
-            disabled={loading || hasAdminAccount === null || hasPrimaryDomain === null}
-          >
-            {loading ? "Creating..." : "Create account"}
-          </Button>
+					<Button
+						type="submit"
+						name={mxConflict ? "replaceMxRecords" : undefined}
+						value={mxConflict ? "true" : undefined}
+						className="h-11 w-full rounded-full px-6 active:scale-[0.98] mt-8"
+						disabled={loading || hasAdminAccount === null || hasPrimaryDomain === null}
+					>
+						{loading
+							? mxConflict ? "Replacing MX records..." : "Creating..."
+							: mxConflict ? "Delete MX records and create account" : "Create account"}
+					</Button>
         </form>
       )}
     </AuthShell>

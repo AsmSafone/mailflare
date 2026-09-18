@@ -36,7 +36,7 @@ export async function submitPrimaryDomain(hostname: string): Promise<{ ok: boole
 
 export async function submitRegistration(
 	form: FormData,
-	payload: { firstRun: boolean; domain: string; enableSending?: boolean },
+	payload: { firstRun: boolean; domain: string; enableSending?: boolean; replaceMxRecords?: boolean },
 ): Promise<{ ok: boolean; data: RegisterResult }> {
 	const res = await fetch("/api/auth/register", {
 		method: "POST",
@@ -46,6 +46,7 @@ export async function submitRegistration(
 				? {
 						domain: payload.domain,
 						enableSending: payload.enableSending,
+						replaceMxRecords: payload.replaceMxRecords,
 						username: form.get("username"),
 						password: form.get("password"),
 						resetEmail: form.get("resetEmail"),

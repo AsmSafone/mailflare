@@ -1,9 +1,13 @@
 export type CfDnsRecord = {
+	id?: string;
 	type?: string;
 	name?: string;
 	content?: string;
 	priority?: number;
 	ttl?: number;
+	proxied?: boolean;
+	comment?: string;
+	tags?: string[];
 };
 
 export type CfApiError = {

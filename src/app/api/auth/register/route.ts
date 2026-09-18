@@ -16,6 +16,7 @@ import { ensureMailboxDomainRouting } from "@/lib/mailboxes/domain-addresses";
 import { readJsonBody } from "@/lib/http/request";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import { verifyTurnstileToken } from "@/lib/auth/turnstile";
+import { getDomainProvisioningError } from "@/lib/domains/errors";
 
 export async function POST(request: Request) {
 	const env = getEnv();
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
 		const added = await addDomainForUser(env, userId, domainName, {
 			enableRouting: true,
 			enableSending: firstRunParsed.data.enableSending ?? true,
+			replaceMxRecords: firstRunParsed.data.replaceMxRecords,
 		});
 		const domain = added.domain;
 		changes = added.changes;
@@ -92,8 +94,11 @@ export async function POST(request: Request) {
 		} catch (cleanupError) {
 			console.warn("Failed to remove the partial user after registration failure", cleanupError);
 		}
-		const message = err instanceof Error ? err.message : "Domain setup failed";
-		return NextResponse.json({ error: message }, { status: 502 });
+		const failure = getDomainProvisioningError(err, "Domain setup failed", 502);
+		return NextResponse.json(
+			{ error: failure.message, code: failure.code },
+			{ status: failure.status },
+		);
 	}
 
 	const token = await createSession(env, userId);

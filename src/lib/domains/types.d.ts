@@ -1,5 +1,5 @@
 import type { domains } from "@/db/schema";
-import type { CfEmailRoutingRule } from "@/lib/cloudflare-api.types";
+import type { CfDnsRecord, CfEmailRoutingRule } from "@/lib/cloudflare-api.types";
 
 /**
  * Exactly what one provisioning attempt changed on the Cloudflare zone, so a
@@ -18,6 +18,14 @@ export type DomainProvisioningChanges = {
 	previousCatchAll: CfEmailRoutingRule | null;
 	/** Addresses this attempt pointed at the Worker, filled in as they are created. */
 	createdAddressRules: string[];
+	/** MX records removed with the user's confirmation, retained so rollback can restore them. */
+	deletedMxRecords: CfDnsRecord[];
+};
+
+export type DomainProvisioningError = {
+	message: string;
+	code?: "MX_RECORDS_CONFLICT";
+	status: number;
 };
 
 export type DomainProvisioningResult = {

@@ -4,6 +4,7 @@ import {
 	disableEmailRouting,
 } from "@/lib/cloudflare-api";
 import { restoreEmailRoutingCatchAll } from "@/lib/domains/catch-all-routing";
+import { restoreMxRecords } from "@/lib/domains/mx-records";
 import type { DomainProvisioningChanges } from "@/lib/domains/types";
 
 async function attempt(label: string, run: () => Promise<unknown>): Promise<void> {
@@ -52,5 +53,9 @@ export async function rollbackDomainProvisioning(
 
 	if (changes.enabledEmailRouting) {
 		await attempt("disableEmailRouting", () => disableEmailRouting(env, zoneId));
+	}
+
+	if (changes.deletedMxRecords.length > 0) {
+		await attempt("restoreMxRecords", () => restoreMxRecords(env, zoneId, changes.deletedMxRecords));
 	}
 }

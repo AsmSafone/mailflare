@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/cookies";
 import { addDomainSchema } from "@/lib/validators";
 import { addDomainForUser, getDomainDns, listUserDomains } from "@/lib/domains/service";
 import { summariseDns, type DnsStatusSummary } from "@/lib/dns-status";
+import { getDomainProvisioningError } from "@/lib/domains/errors";
 
 export async function GET(request: NextRequest) {
 	const env = getEnv();
@@ -60,10 +61,14 @@ export async function POST(request: Request) {
 		const result = await addDomainForUser(env, user.id, parsed.data.hostname, {
 			enableRouting: parsed.data.enableRouting,
 			enableSending: parsed.data.enableSending,
+			replaceMxRecords: parsed.data.replaceMxRecords,
 		});
 		return NextResponse.json(result);
 	} catch (err) {
-		const message = err instanceof Error ? err.message : "Failed to add domain";
-		return NextResponse.json({ error: message }, { status: 400 });
+		const failure = getDomainProvisioningError(err, "Failed to add domain");
+		return NextResponse.json(
+			{ error: failure.message, code: failure.code },
+			{ status: failure.status },
+		);
 	}
 }

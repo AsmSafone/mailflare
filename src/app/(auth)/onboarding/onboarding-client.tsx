@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, LoaderCircle, MailPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, LoaderCircle, MailPlus } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ export function OnboardingClient() {
 	const [domainId, setDomainId] = useState("");
 	const [localPart, setLocalPart] = useState("me");
 	const [error, setError] = useState<string | null>(null);
+	const [mxConflict, setMxConflict] = useState(false);
 	const [loading, setLoading] = useState(false);
 
 	useEffect(() => {
@@ -35,7 +36,7 @@ export function OnboardingClient() {
 			.catch(() => undefined);
 	}, []);
 
-	async function addDomain() {
+	async function addDomain(replaceMxRecords = false) {
 		setLoading(true);
 		setError(null);
 
@@ -50,7 +51,7 @@ export function OnboardingClient() {
 				return;
 			}
 			checkedDomain = result.domain;
-			sendingRequested = true;
+			sendingRequested = false;
 			setDomainCheck(result.domain);
 			setEnableSending(sendingRequested);
 		}
@@ -60,12 +61,18 @@ export function OnboardingClient() {
 			return;
 		}
 
-		const { ok, data } = await createDomain(checkedDomain.hostname, sendingRequested);
+		const { ok, data } = await createDomain(checkedDomain.hostname, sendingRequested, replaceMxRecords);
 		setLoading(false);
 		if (!ok || !data.domain) {
+			if (data.code === "MX_RECORDS_CONFLICT") {
+				setMxConflict(true);
+				setError(null);
+				return;
+			}
 			setError(data.error ?? "Failed to add domain");
 			return;
 		}
+		setMxConflict(false);
 		setDomainId(data.domain.id);
 		setStep(2);
 	}
@@ -76,6 +83,7 @@ export function OnboardingClient() {
 
 		setDomainChecking(true);
 		setError(null);
+		setMxConflict(false);
 		const result = await checkDomain(normalized);
 		setDomainChecking(false);
 		if (!result.ok || !result.domain) {
@@ -86,7 +94,7 @@ export function OnboardingClient() {
 		}
 
 		setDomainCheck(result.domain);
-		setEnableSending(true);
+		setEnableSending(false);
 	}
 
 	async function addMailbox() {
@@ -139,6 +147,7 @@ export function OnboardingClient() {
 									if (domainCheck?.hostname !== e.target.value.toLowerCase().trim()) {
 										setDomainCheck(null);
 										setEnableSending(false);
+										setMxConflict(false);
 									}
 								}}
 								onBlur={() => void inspectDomain()}
@@ -175,13 +184,32 @@ export function OnboardingClient() {
 								Domain found in Cloudflare as {domainCheck.zone.name}
 							</div>
 						)}
-						<Button
-							onClick={addDomain}
-							disabled={!hostname || loading || domainChecking}
-							className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
-						>
-							{loading ? "Adding..." : "Add domain"}
-						</Button>
+						{mxConflict && (
+							<div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900">
+								<div className="flex items-start gap-3">
+									<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+									<p className="text-sm leading-6">
+										Existing MX records deliver mail to another provider. Continuing deletes those records and replaces them with Cloudflare Email Routing, so the previous provider will stop receiving mail.
+									</p>
+								</div>
+								<Button
+									onClick={() => void addDomain(true)}
+									disabled={loading}
+									className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
+								>
+									{loading ? "Replacing MX records..." : "Delete MX records and continue"}
+								</Button>
+							</div>
+						)}
+						{!mxConflict && (
+							<Button
+								onClick={() => void addDomain()}
+								disabled={!hostname || loading || domainChecking}
+								className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
+							>
+								{loading ? "Adding..." : "Add domain"}
+							</Button>
+						)}
 					</>
 				)}
 				{step === 2 && (

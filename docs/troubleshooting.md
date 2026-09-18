@@ -24,6 +24,10 @@ If you use a legacy Global API Key, set `CF_EMAIL` and `CF_API_KEY` instead of p
 
 Update the token so it can read the zone and manage its DNS, Email Routing settings, and Email Routing rules. The recommended scoped permissions are listed in the [deployment guide](deployment.md#required-configuration).
 
+## Cloudflare error 2008 for existing MX records
+
+Cloudflare Email Routing cannot be enabled while another mail provider's MX records are present. Mailflare shows a confirmation before replacing them. Continuing deletes the existing MX records and points incoming mail to Cloudflare Email Routing, so the previous provider will stop receiving mail. The `CF_TOKEN` needs **DNS Edit** permission for this action.
+
 ## D1 error 7404: Database could not be found
 
 D1 database IDs belong to a specific Cloudflare account. This error commonly means `wrangler.jsonc` contains an ID copied from another account.

@@ -34,7 +34,7 @@ export async function addDomainForUser(
 	env: CloudflareEnv,
 	userId: string,
 	hostname: string,
-	options?: { enableRouting?: boolean; enableSending?: boolean },
+	options?: { enableRouting?: boolean; enableSending?: boolean; replaceMxRecords?: boolean },
 ): Promise<{
 	domain: typeof domains.$inferSelect;
 	dns: DomainDnsView;
@@ -102,8 +102,19 @@ export async function addDomainForUser(
 	}
 
 	// Read the DNS view outside the rollback scope: the domain is fully set up by
-	// now, so a failed status read must not tear it back down.
-	const dns = await getDomainDns(env, domain);
+	// now, so a failed status read must not tear it back down or make registration
+	// delete the account that now owns the completed Cloudflare configuration.
+	let dns: DomainDnsView;
+	try {
+		dns = await getDomainDns(env, domain);
+	} catch (error) {
+		console.warn("addDomainForUser: failed to read DNS status after provisioning", error);
+		dns = {
+			routing: { records: [], missing: [], status: provisioned.routingStatus },
+			sending: [],
+			sendingEnabled: provisioned.sendingEnabled,
+		};
+	}
 	return { domain, dns, changes: provisioned.changes };
 }
 

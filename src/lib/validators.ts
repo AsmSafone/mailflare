@@ -51,6 +51,7 @@ export const registerSchema = z.object({
 export const firstRunRegisterSchema = z.object({
 	domain: z.string().min(3),
 	enableSending: z.boolean().optional(),
+	replaceMxRecords: z.boolean().optional(),
 	username: z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/),
 	password: z.string().min(8),
 	resetEmail: z.string().email(),
@@ -70,6 +71,7 @@ export const addDomainSchema = z.object({
 	hostname: z.string().min(3),
 	enableRouting: z.boolean().optional(),
 	enableSending: z.boolean().optional(),
+	replaceMxRecords: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({

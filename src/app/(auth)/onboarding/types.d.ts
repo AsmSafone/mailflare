@@ -5,6 +5,7 @@ export type DomainListResult = {
 export type DomainCreateResult = {
 	domain?: { id: string };
 	error?: string;
+	code?: "MX_RECORDS_CONFLICT";
 };
 
 export type DomainPreflight = {
