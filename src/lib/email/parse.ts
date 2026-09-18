@@ -15,6 +15,8 @@ export type ParsedEmail = {
 	toAddr: string | null;
 	/** Full Cc header, comma-joined. */
 	ccAddr: string | null;
+	/** Full Bcc header, comma-joined. Only present on mail composed locally, never on delivered mail. */
+	bccAddr: string | null;
 	inReplyTo: string | null;
 	references: string[];
 	date: Date | null;
@@ -32,6 +34,7 @@ export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 		fromAddr: formatPostalAddress(email.from, null),
 		toAddr: formatPostalAddressList(email.to, null),
 		ccAddr: formatPostalAddressList(email.cc, null),
+		bccAddr: formatPostalAddressList(email.bcc, null),
 		inReplyTo: normalizeMessageId(email.inReplyTo),
 		references: parseMessageIdList(email.references),
 		date: date && !Number.isNaN(date.getTime()) ? date : null,

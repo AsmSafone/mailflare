@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { messages } from "@/db/schema";
 import { sendEmail } from "@/lib/email/send";
 import { loadMessageAttachmentContents } from "@/lib/email/attachments";
+import { deleteMessageWithObjects } from "@/lib/email/message-cleanup";
 import { decodeIdentityId, identityId } from "./ids";
 import { listJmapMailboxes, listSendableAddresses } from "./access";
 import { getEmailState } from "./state";
@@ -91,7 +92,13 @@ export const emailSubmissionSet: JmapMethodHandler = async (ctx, args) => {
 				mailboxId: identity.mailboxId,
 				attachments,
 			});
-			await ctx.db.delete(messages).where(eq(messages.id, draft.id));
+			try {
+				await deleteMessageWithObjects(ctx.env, ctx.db, draft.id, draft.rawR2Key);
+			} catch (error) {
+				// Sending is irreversible, so cleanup failure must not invite a retry
+				// that could deliver the same message twice.
+				console.error(`Failed to clean up submitted draft ${draft.id}`, error);
+			}
 			destroyedEmails.push(draft.id);
 			ctx.createdIds[creationId] = result.messageId;
 			created[creationId] = {

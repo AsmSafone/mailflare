@@ -25,7 +25,7 @@ export async function applySpamFeedback(env: CloudflareEnv, user: SessionUser, m
 	const parsed = {
 		subject: message.subject, text: message.textBody, html: message.htmlBody,
 		messageId: message.providerMessageId, fromAddr: message.fromAddr, toAddr: message.toAddr,
-		ccAddr: message.ccAddr, inReplyTo: message.inReplyTo,
+		ccAddr: message.ccAddr, bccAddr: message.bccAddr, inReplyTo: message.inReplyTo,
 		references: message.references?.split(/\s+/).filter(Boolean) ?? [], date: message.createdAt,
 		attachments: [],
 	};

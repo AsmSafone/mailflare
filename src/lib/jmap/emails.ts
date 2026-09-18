@@ -1,22 +1,74 @@
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { messages } from "@/db/schema";
 import { newId } from "@/lib/ids";
-import { buildSnippet } from "@/lib/email/parse";
+import { buildSnippet, parseRawMime } from "@/lib/email/parse";
 import { getAuthorizedSenderAddress } from "@/lib/email/sender";
 import { joinEmailAddressList } from "@/lib/email/address";
+import { resolveThreadId } from "@/lib/email/threading";
 import { storeMessageAttachments } from "@/lib/email/attachments";
+import { deleteMessageWithObjects } from "@/lib/email/message-cleanup";
 import { LIMITS, KEYWORD_FLAGGED, KEYWORD_SEEN } from "./constants";
 import { JmapError, invalidArguments } from "./errors";
 import { decodeBlobId, decodeMailboxRef, roleToStatus } from "./ids";
 import { buildEmailObject, loadAttachmentsByMessage, resolveHeaderProperty } from "./email-objects";
+import { importFlags, parseReceivedAt, resolveDraftsMailbox } from "./email-import-utils";
 import { filterToSql, mailboxRefCondition, sortToSql } from "./email-query";
 import { getEmailState } from "./state";
 import { listAccessibleMailboxIdSet, listJmapMailboxes } from "./access";
-import { readUpload } from "./blobs";
-import type { Comparator, EmailAddressObject, Filter, JmapContext, JmapMethodHandler, MailboxRef } from "./types";
+import { deleteUpload, readUpload, storeRawDraftMime } from "./blobs";
+import type { Comparator, EmailAddressObject, Filter, JmapContext, JmapMethodHandler, JmapSetError, MailboxRef } from "./types";
 import type { AttachmentContent } from "@/lib/email/attachment-types";
 
 type MessageRow = typeof messages.$inferSelect;
+
+/** The columns a draft row is made of, shared by `Email/set` create and `Email/import`. */
+type DraftRow = {
+	mailboxId: string;
+	fromAddr: string;
+	toAddr: string;
+	ccAddr: string | null;
+	bccAddr: string | null;
+	subject: string | null;
+	textBody: string | null;
+	htmlBody: string | null;
+	inReplyTo: string | null;
+	references: string | null;
+	read?: boolean;
+	starred?: boolean;
+	threadId?: string | null;
+	providerMessageId?: string | null;
+	rawR2Key?: string | null;
+	createdAt?: Date;
+};
+
+/** Insert a draft and return its id. Drafts are outbound mail that has not been sent. */
+async function insertDraft(ctx: JmapContext, row: DraftRow): Promise<string> {
+	const id = newId("msg");
+	await ctx.db.insert(messages).values({
+		id,
+		userId: ctx.auth.userId,
+		mailboxId: row.mailboxId,
+		direction: "outbound",
+		fromAddr: row.fromAddr,
+		toAddr: row.toAddr,
+		ccAddr: row.ccAddr,
+		bccAddr: row.bccAddr,
+		subject: row.subject,
+		snippet: buildSnippet(row.textBody, row.htmlBody),
+		textBody: row.textBody,
+		htmlBody: row.htmlBody,
+		status: "draft",
+		read: row.read ?? true,
+		starred: row.starred ?? false,
+		inReplyTo: row.inReplyTo,
+		references: row.references,
+		threadId: row.threadId ?? null,
+		providerMessageId: row.providerMessageId ?? null,
+		rawR2Key: row.rawR2Key ?? null,
+		...(row.createdAt ? { createdAt: row.createdAt } : {}),
+	});
+	return id;
+}
 
 async function scope(ctx: JmapContext) {
 	const ids = Array.from(await listAccessibleMailboxIdSet(ctx));
@@ -150,16 +202,13 @@ function keywordsFromPatch(patch: Record<string, unknown>): { read?: boolean; st
 
 /** Drafts are the only thing a client creates; everything else is a flag or a move. */
 async function createDraft(ctx: JmapContext, value: Record<string, unknown>, accessible: Set<string>) {
-	const mailboxIds = Object.keys((value.mailboxIds as Record<string, boolean>) ?? {}).filter((id) => (value.mailboxIds as Record<string, boolean>)[id]);
-	const ref = mailboxIds.length === 1 ? decodeMailboxRef(mailboxIds[0]) : null;
-	if (!ref || !accessible.has(ref.mailboxId) || ref.kind !== "role" || ref.role !== "drafts") {
-		return { error: { type: "invalidProperties", properties: ["mailboxIds"], description: "New messages can only be created in a Drafts mailbox" } };
-	}
+	const target = resolveDraftsMailbox(value.mailboxIds, accessible);
+	if ("error" in target) return target;
 	const from = (value.from as EmailAddressObject[] | undefined)?.[0]?.email;
 	if (!from) return { error: { type: "invalidProperties", properties: ["from"] } };
 	let sender: { fromAddr: string; mailboxId: string };
 	try {
-		sender = await getAuthorizedSenderAddress(ctx.env, { userId: ctx.auth.userId, from, mailboxId: ref.mailboxId });
+		sender = await getAuthorizedSenderAddress(ctx.env, { userId: ctx.auth.userId, from, mailboxId: target.mailboxId });
 	} catch (error) {
 		return { error: { type: "forbidden", description: error instanceof Error ? error.message : "Cannot send from that address" } };
 	}
@@ -171,25 +220,17 @@ async function createDraft(ctx: JmapContext, value: Record<string, unknown>, acc
 	const html = partText(value.htmlBody);
 	const references = Array.isArray(value.references) ? (value.references as string[]).join(" ") : null;
 
-	const id = newId("msg");
-	await ctx.db.insert(messages).values({
-		id,
-		userId: ctx.auth.userId,
+	const id = await insertDraft(ctx, {
 		mailboxId: sender.mailboxId,
-		direction: "outbound",
 		fromAddr: sender.fromAddr,
 		toAddr: addressList(value.to),
 		ccAddr: addressList(value.cc) || null,
 		bccAddr: addressList(value.bcc) || null,
 		subject: typeof value.subject === "string" ? value.subject : null,
-		snippet: buildSnippet(text || null, html || null),
 		textBody: text || null,
 		htmlBody: html || null,
-		status: "draft",
-		read: true,
 		inReplyTo: Array.isArray(value.inReplyTo) ? (value.inReplyTo as string[])[0] ?? null : null,
 		references,
-		threadId: null,
 	});
 
 	const uploads: AttachmentContent[] = [];
@@ -279,12 +320,125 @@ export const emailSet: JmapMethodHandler = async (ctx, args) => {
 			notDestroyed[id] = { type: "forbidden" };
 			continue;
 		}
-		if (row.status === "trash" || row.status === "draft") await ctx.db.delete(messages).where(eq(messages.id, id));
+		if (row.status === "trash" || row.status === "draft") await deleteMessageWithObjects(ctx.env, ctx.db, row.id, row.rawR2Key);
 		else await ctx.db.update(messages).set({ status: "trash", folderId: null }).where(eq(messages.id, id));
 		destroyed.push(id);
 	}
 
 	return { accountId: ctx.accountId, oldState, newState: await getEmailState(ctx), created, updated, destroyed, notCreated, notUpdated, notDestroyed };
+};
+
+/**
+ * Import one uploaded `message/rfc822` blob as a draft (RFC 8621 §4.8). Clients
+ * that compose MIME locally send by uploading it, importing it into Drafts and
+ * then submitting it, so this is the first half of their send path. The raw
+ * bytes are kept verbatim under `drafts/` and the parsed headers fill the
+ * columns the rest of Mailflare reads, including `providerMessageId`, which is
+ * what lets a client find its own draft again with a Message-ID header filter.
+ */
+async function importEmail(ctx: JmapContext, value: Record<string, unknown>, writable: Set<string>): Promise<{ id: string } | { error: JmapSetError }> {
+	const target = resolveDraftsMailbox(value.mailboxIds, writable);
+	if ("error" in target) return target;
+
+	const blob = typeof value.blobId === "string" ? decodeBlobId(value.blobId) : null;
+	if (!blob || blob.kind !== "up") return { error: { type: "blobNotFound", description: "blobId must name an upload from this account" } };
+	const upload = await readUpload(ctx, blob.id);
+	if (!upload) return { error: { type: "blobNotFound", description: "No such upload" } };
+	if (upload.content.byteLength === 0) return { error: { type: "invalidEmail", description: "The blob is empty" } };
+	if (upload.content.byteLength > LIMITS.maxSizeUpload) return { error: { type: "tooLarge", description: "The message exceeds maxSizeUpload" } };
+
+	let parsed: Awaited<ReturnType<typeof parseRawMime>>;
+	try {
+		parsed = await parseRawMime(upload.content);
+	} catch (error) {
+		return { error: { type: "invalidEmail", description: error instanceof Error ? error.message : "The blob is not a MIME message" } };
+	}
+	if (!parsed.fromAddr) return { error: { type: "invalidEmail", description: "The message has no From header" } };
+
+	let sender: { fromAddr: string; mailboxId: string };
+	try {
+		sender = await getAuthorizedSenderAddress(ctx.env, { userId: ctx.auth.userId, from: parsed.fromAddr, mailboxId: target.mailboxId });
+	} catch (error) {
+		return { error: { type: "forbidden", description: error instanceof Error ? error.message : "Cannot send from that address" } };
+	}
+
+	const flags = importFlags(value.keywords);
+	const id = await insertDraft(ctx, {
+		mailboxId: sender.mailboxId,
+		fromAddr: sender.fromAddr,
+		toAddr: parsed.toAddr ?? "",
+		ccAddr: parsed.ccAddr,
+		bccAddr: parsed.bccAddr,
+		subject: parsed.subject,
+		textBody: parsed.text,
+		htmlBody: parsed.html,
+		inReplyTo: parsed.inReplyTo,
+		references: parsed.references.length ? parsed.references.join(" ") : null,
+		read: flags.read,
+		starred: flags.starred,
+		// Angle brackets are kept, as inbound rows store them.
+		providerMessageId: parsed.messageId,
+		threadId: await resolveThreadId(ctx.db, {
+			mailboxId: sender.mailboxId,
+			messageId: parsed.messageId,
+			inReplyTo: parsed.inReplyTo,
+			references: parsed.references,
+		}),
+		createdAt: parseReceivedAt(value.receivedAt) ?? parsed.date ?? new Date(),
+	});
+
+	// Nothing may be left half-imported, so the row and the bytes go together.
+	let rawR2Key: string | null = null;
+	try {
+		rawR2Key = await storeRawDraftMime(ctx, id, upload.content);
+		await ctx.db.update(messages).set({ rawR2Key }).where(eq(messages.id, id));
+		if (parsed.attachments.length) await storeMessageAttachments(ctx.env, id, parsed.attachments);
+	} catch (error) {
+		try {
+			await deleteMessageWithObjects(ctx.env, ctx.db, id, rawR2Key);
+		} catch (cleanupError) {
+			console.error(`Failed to clean up rejected Email/import draft ${id}`, cleanupError);
+		}
+		return { error: { type: "tooLarge", description: error instanceof Error ? error.message : "Attachments rejected" } };
+	}
+	// The bytes belong to the message now, so release the upload.
+	try {
+		await deleteUpload(ctx, blob.id);
+	} catch (error) {
+		// The import is already complete. Failing it here would make a client retry
+		// and create a duplicate draft merely because temporary cleanup failed.
+		console.warn(`Failed to delete claimed JMAP upload ${blob.id}`, error);
+	}
+	return { id };
+}
+
+export const emailImport: JmapMethodHandler = async (ctx, args) => {
+	const oldState = await getEmailState(ctx);
+	if (args.ifInState && args.ifInState !== oldState) return { type: "stateMismatch" };
+	const emails = (args.emails ?? {}) as Record<string, Record<string, unknown>>;
+	if (Object.keys(emails).length > LIMITS.maxObjectsInSet) throw new JmapError("requestTooLarge");
+	const writable = new Set((await listJmapMailboxes(ctx)).filter((row) => row.permission !== "read_only").map((row) => row.id));
+	const created: Record<string, unknown> = {};
+	const notCreated: Record<string, unknown> = {};
+
+	for (const [creationId, value] of Object.entries(emails)) {
+		const result = await importEmail(ctx, value ?? {}, writable);
+		if ("error" in result) {
+			notCreated[creationId] = result.error;
+			continue;
+		}
+		ctx.createdIds[creationId] = result.id;
+		const [row] = await loadMessages(ctx, [result.id]);
+		if (!row) {
+			notCreated[creationId] = { type: "serverFail", description: "The imported message could not be read back" };
+			continue;
+		}
+		// The same values Email/get would answer, so the client can act on them straight away.
+		const object = buildEmailObject(row, (await loadAttachmentsByMessage(ctx, [row.id])).get(row.id) ?? [], { fetchBodies: false, maxBodyValueBytes: 0 });
+		created[creationId] = { id: object.id, blobId: object.blobId, threadId: object.threadId, size: object.size };
+	}
+
+	return { accountId: ctx.accountId, oldState, newState: await getEmailState(ctx), created, notCreated };
 };
 
 export const emailUnsupported = (method: string): JmapMethodHandler => async () => ({ type: "unknownMethod", description: `${method} is not supported` });

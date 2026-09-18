@@ -18,6 +18,11 @@ export function invalidArguments(description: string): JmapError {
 	return new JmapError("invalidArguments", description);
 }
 
+/** RFC 8620 §5.5: a filter the server cannot apply is an error, never a silent match-all. */
+export function unsupportedFilter(description: string): JmapError {
+	return new JmapError("unsupportedFilter", description);
+}
+
 /** RFC 7807 problem document for request-level failures. */
 export function problemResponse(type: string, status: number, detail: string, extra: Record<string, unknown> = {}): Response {
 	return new Response(JSON.stringify({ type: `urn:ietf:params:jmap:error:${type}`, status, detail, ...extra }), {

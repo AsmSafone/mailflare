@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, exists, gt, gte, inArray, isNull, like, lt, ne, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, gte, inArray, isNotNull, isNull, like, lt, ne, not, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { messageAttachments, messages } from "@/db/schema";
 import { KEYWORD_DRAFT, KEYWORD_FLAGGED, KEYWORD_SEEN } from "./constants";
-import { invalidArguments } from "./errors";
+import { invalidArguments, unsupportedFilter } from "./errors";
+import { normalizeMessageId } from "@/lib/email/threading";
 import { decodeMailboxRef, roleToStatus } from "./ids";
 import type { Comparator, Filter, FilterCondition, MailboxRef } from "./types";
 
@@ -31,8 +32,40 @@ function keywordCondition(keyword: string, present: boolean): SQL {
 	}
 }
 
+function likeEscape(value: string): string {
+	return value.replace(/[%_\\]/g, (char) => `\\${char}`);
+}
+
 function likePattern(value: string): string {
-	return `%${value.replace(/[%_\\]/g, (char) => `\\${char}`)}%`;
+	return `%${likeEscape(value)}%`;
+}
+
+/**
+ * RFC 8621 §4.4.1 `header`: `[name]` means the header is present, `[name, value]`
+ * that its value equals that string. Only the headers Mailflare keeps as columns
+ * can be matched, and Message-IDs compare without their angle brackets because
+ * inbound rows store them with and outbound rows without.
+ */
+function headerCondition(header: string[]): SQL {
+	if (!Array.isArray(header) || header.length < 1 || header.length > 2 || typeof header[0] !== "string") {
+		throw invalidArguments("header must be [name] or [name, value]");
+	}
+	const name = header[0].trim().toLowerCase();
+	const value = header.length === 2 ? normalizeMessageId(String(header[1])) : null;
+	switch (name) {
+		case "message-id":
+			if (header.length === 1) return isNotNull(messages.providerMessageId);
+			return value ? inArray(messages.providerMessageId, [value, `<${value}>`]) : sql`0`;
+		case "in-reply-to":
+			if (header.length === 1) return isNotNull(messages.inReplyTo);
+			return value ? inArray(messages.inReplyTo, [value, `<${value}>`]) : sql`0`;
+		case "references":
+			if (header.length === 1) return isNotNull(messages.references);
+			// The column is the space-joined chain, so pad both sides to match whole ids only.
+			return value ? like(sql`' ' || coalesce(${messages.references}, '') || ' '`, `% ${likeEscape(value)} %`) : sql`0`;
+		default:
+			throw unsupportedFilter(`Cannot filter on the ${header[0]} header`);
+	}
 }
 
 function conditionToSql(condition: FilterCondition, accessible: Set<string>): SQL[] {
@@ -74,6 +107,7 @@ function conditionToSql(condition: FilterCondition, accessible: Set<string>): SQ
 			)!,
 		);
 	}
+	if (condition.header) parts.push(headerCondition(condition.header));
 	if (condition.hasAttachment !== undefined) {
 		const hasOne = exists(
 			sql`(SELECT 1 FROM ${messageAttachments} WHERE ${messageAttachments.messageId} = ${messages.id} AND ${messageAttachments.disposition} = 'attachment')`,

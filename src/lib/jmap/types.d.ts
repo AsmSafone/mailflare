@@ -20,6 +20,9 @@ export type JmapResponse = {
 
 export type JmapMethodError = { type: string; description?: string; [key: string]: unknown };
 
+/** RFC 8620 §5.3 SetError: why one object in a /set or /import call was rejected. */
+export type JmapSetError = { type: string; properties?: string[]; description?: string };
+
 export type JmapContext = {
 	env: CloudflareEnv;
 	db: AppDatabase;
@@ -88,6 +91,8 @@ export type FilterCondition = {
 	subject?: string;
 	body?: string;
 	hasAttachment?: boolean;
+	/** `[name]` matches messages carrying the header; `[name, value]` those whose value equals it. */
+	header?: string[];
 };
 
 export type FilterOperator = { operator: "AND" | "OR" | "NOT"; conditions: Filter[] };

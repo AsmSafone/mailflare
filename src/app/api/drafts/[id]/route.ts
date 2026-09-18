@@ -10,7 +10,8 @@ import { selectDraftWithBody } from "./utils";
 import { readJsonBody } from "@/lib/http/request";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import { getDraftSender, userOwnsDraft } from "../utils";
-import { deleteMessageAttachmentObjects, listMessageAttachments } from "@/lib/email/attachments";
+import { listMessageAttachments } from "@/lib/email/attachments";
+import { deleteMessageWithObjects } from "@/lib/email/message-cleanup";
 
 export async function GET(request: Request, { params }: DraftRouteParams) {
 	const { id } = await params;
@@ -80,8 +81,6 @@ export async function DELETE(request: Request, { params }: DraftRouteParams) {
 		return NextResponse.json({ error: "Draft not found" }, { status: 404 });
 	}
 
-	// Rows cascade with the draft; the R2 objects do not.
-	await deleteMessageAttachmentObjects(env, id);
-	await db.delete(messages).where(eq(messages.id, id));
+	await deleteMessageWithObjects(env, db, id, draft.rawR2Key);
 	return NextResponse.json({ ok: true });
 }

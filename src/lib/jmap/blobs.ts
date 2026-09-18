@@ -8,11 +8,16 @@ import type { JmapContext } from "./types";
 
 const UPLOAD_PREFIX = "jmap-uploads";
 
+/** Uploads are namespaced by user, so only the account that stored one can read it. */
+function uploadKey(ctx: JmapContext, uploadId: string): string {
+	return `${UPLOAD_PREFIX}/${ctx.auth.userId}/${uploadId}`;
+}
+
 /** Client uploads live in R2 under the user until a draft claims them. */
 export async function storeUpload(ctx: JmapContext, body: ArrayBuffer, type: string, name: string | null) {
 	if (body.byteLength > LIMITS.maxSizeUpload) return null;
 	const id = newId("upl");
-	await ctx.env.BUCKET.put(`${UPLOAD_PREFIX}/${ctx.auth.userId}/${id}`, body, {
+	await ctx.env.BUCKET.put(uploadKey(ctx, id), body, {
 		httpMetadata: { contentType: type },
 		customMetadata: { userId: ctx.auth.userId, ...(name ? { name } : {}) },
 	});
@@ -20,9 +25,28 @@ export async function storeUpload(ctx: JmapContext, body: ArrayBuffer, type: str
 }
 
 export async function readUpload(ctx: JmapContext, uploadId: string) {
-	const object = await ctx.env.BUCKET.get(`${UPLOAD_PREFIX}/${ctx.auth.userId}/${uploadId}`);
+	const object = await ctx.env.BUCKET.get(uploadKey(ctx, uploadId));
 	if (!object) return null;
 	return { content: await object.arrayBuffer(), type: object.httpMetadata?.contentType ?? "application/octet-stream", name: object.customMetadata?.name ?? null };
+}
+
+/** Drop an upload once a message owns its bytes. */
+export async function deleteUpload(ctx: JmapContext, uploadId: string): Promise<void> {
+	await ctx.env.BUCKET.delete(uploadKey(ctx, uploadId));
+}
+
+/**
+ * Keep the exact MIME an imported message arrived as, mirroring the `inbound/`
+ * copy the mail pipeline stores, so `readBlob` serves the client its own bytes
+ * back instead of the rebuilt minimal message.
+ */
+export async function storeRawDraftMime(ctx: JmapContext, messageId: string, raw: ArrayBuffer): Promise<string> {
+	const key = `drafts/${messageId}.eml`;
+	await ctx.env.BUCKET.put(key, raw, {
+		httpMetadata: { contentType: "message/rfc822" },
+		customMetadata: { userId: ctx.auth.userId, messageId },
+	});
+	return key;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { CAPABILITY_CORE, CAPABILITY_MAIL, CAPABILITY_SUBMISSION, LIMITS } from "./constants";
 import { JmapError } from "./errors";
 import { mailboxChanges, mailboxGet, mailboxQuery, mailboxSet } from "./mailboxes";
-import { emailChanges, emailGet, emailQuery, emailQueryChanges, emailSet, emailUnsupported, searchSnippetGet, threadChanges, threadGet } from "./emails";
+import { emailChanges, emailGet, emailImport, emailQuery, emailQueryChanges, emailSet, emailUnsupported, searchSnippetGet, threadChanges, threadGet } from "./emails";
 import { emailSubmissionChanges, emailSubmissionGet, emailSubmissionQuery, emailSubmissionSet, identityChanges, identityGet, identitySet } from "./identities";
 import { getEmailState, getMailboxState } from "./state";
 import type { JmapContext, JmapInvocation, JmapMethodHandler, JmapRequest, JmapResponse } from "./types";
@@ -21,7 +21,7 @@ const METHODS: Record<string, JmapMethodHandler> = {
 	"Email/queryChanges": emailQueryChanges,
 	"Email/set": emailSet,
 	"Email/copy": emailUnsupported("Email/copy"),
-	"Email/import": emailUnsupported("Email/import"),
+	"Email/import": emailImport,
 	"Email/parse": emailUnsupported("Email/parse"),
 	"SearchSnippet/get": searchSnippetGet,
 	"Identity/get": identityGet,
