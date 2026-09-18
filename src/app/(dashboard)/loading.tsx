@@ -1,3 +1,3 @@
-import { ListPageSkeleton } from "@/components/page-skeletons";
+import { RouteLoadingBar } from "@/components/route-loading-bar";
 
-export default ListPageSkeleton;
+export default RouteLoadingBar;

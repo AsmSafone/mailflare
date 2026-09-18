@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LicenseStatus } from "@/lib/licenses/types";
 import type { ActivatableLicensePlan, LicenseAction } from "./types";
@@ -92,17 +91,6 @@ export function LicenseActivation() {
 
 	return (
 		<Card className="rounded-3xl border-0 bg-white px-6">
-			<CardHeader>
-				<div className="flex items-center justify-between gap-4">
-					<div className="space-y-1.5">
-						<CardTitle>License activation</CardTitle>
-						<CardDescription>Activate the key delivered after your Paymug purchase.</CardDescription>
-					</div>
-					<Badge variant={license?.active ? "default" : "outline"}>
-						{formatLicensePlan(license?.plan ?? "community")}
-					</Badge>
-				</div>
-			</CardHeader>
 			<CardContent className="space-y-5 pb-6">
 				{hasActivation && license && (
 					<p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -110,18 +98,40 @@ export function LicenseActivation() {
 					</p>
 				)}
 				{!hasActivation && (
-					<div className="space-y-2">
-						<Label htmlFor="licensePlan">Product</Label>
-						<Select
-							id="licensePlan"
-							value={selectedPlan}
-							onChange={(event) => setSelectedPlan(event.target.value as ActivatableLicensePlan)}
-							disabled={action !== null}
-							className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							<option value="pro">Pro</option>
-							<option value="team">Team</option>
-						</Select>
+					<div className="space-y-4 pt-6">
+						<Label className="mb-4">Already has a license? Choose your tier</Label>
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-2" role="radiogroup" aria-label="Product">
+							<button
+								type="button"
+								role="radio"
+								aria-checked={selectedPlan === "pro"}
+								onClick={() => setSelectedPlan("pro")}
+								disabled={action !== null}
+								className={`rounded-2xl border px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+									selectedPlan === "pro"
+										? "border-blue-600 bg-neutral-50 ring-1 ring-blue-700"
+										: "border-neutral-200 bg-white hover:border-neutral-400"
+								}`}
+							>
+								<span className="block text-xl font-semibold">Pro</span>
+								<span className="mt-1 block text-xs text-neutral-500">For individual power users</span>
+							</button>
+							<button
+								type="button"
+								role="radio"
+								aria-checked={selectedPlan === "team"}
+								onClick={() => setSelectedPlan("team")}
+								disabled={action !== null}
+								className={`rounded-2xl border px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+									selectedPlan === "team"
+										? "border-blue-600 bg-neutral-50 ring-1 ring-blue-700"
+										: "border-neutral-200 bg-white hover:border-neutral-400"
+								}`}
+							>
+								<span className="block text-xl font-semibold text-neutral-900">Team</span>
+								<span className="mt-1 block text-xs text-neutral-500">For teams and shared inboxes</span>
+							</button>
+						</div>
 					</div>
 				)}
 				<div className="space-y-2">
@@ -132,10 +142,9 @@ export function LicenseActivation() {
 						autoComplete="off"
 						value={licenseKey}
 						onChange={(event) => setLicenseKey(event.target.value)}
-						placeholder="Enter your Paymug license key"
+						placeholder="Enter your Mailflare license key"
 						disabled={action !== null}
 					/>
-					<p className="text-xs text-neutral-500">The key is sent directly to Paymug and is not stored. Mailflare keeps only a one-way hash. Activation binds the key to this installation and URL.</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-3">
 					{hasActivation ? (
@@ -149,7 +158,7 @@ export function LicenseActivation() {
 						</>
 					) : (
 						<Button type="button" onClick={() => void submit("activate")} disabled={action !== null}>
-							{action === "activate" ? "Activating..." : "Activate license"}
+							{action === "activate" ? "Activating..." : "Activate"}
 						</Button>
 					)}
 					{status && <p className="text-sm text-neutral-500">{status}</p>}

@@ -25,7 +25,7 @@ const sections = [
 	{
 		href: "/licenses",
 		title: "Licenses",
-		description: "Compare Pro and Team perpetual licenses.",
+		description: "Compare Pro and Team one-time licenses.",
 		icon: BadgeDollarSign,
 	},
 	{

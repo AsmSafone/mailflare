@@ -4,18 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsFetching } from "@tanstack/react-query";
 import { useBranding } from "@/components/branding-provider";
 import { PageLoadingContext } from "@/components/page-loading";
+import { RouteLoadingBar } from "@/components/route-loading-bar";
 import type { LoadingTransitionProps } from "./loading-transition-types";
 
 const MINIMUM_LOADING_TIME = 600;
 const COMPLETION_TIME = 220;
 const MAXIMUM_DATA_WAIT = 10_000;
+let hasShownInitialLoadingTransition = false;
 
 export function LoadingTransition({ children, ready }: LoadingTransitionProps) {
 	const branding = useBranding();
+	const showInitialLoader = useRef(!hasShownInitialLoadingTransition).current;
 	const startedAt = useRef(Date.now());
 	const [progress, setProgress] = useState(8);
-	const [loaderVisible, setLoaderVisible] = useState(true);
-	const [contentVisible, setContentVisible] = useState(false);
+	const [loaderVisible, setLoaderVisible] = useState(showInitialLoader);
+	const [contentVisible, setContentVisible] = useState(!showInitialLoader);
+	const [initialLoadComplete, setInitialLoadComplete] = useState(!showInitialLoader);
 	const [iconUrl, setIconUrl] = useState(branding.iconUrl);
 	const [pageMounted, setPageMounted] = useState(false);
 	const [pendingLoads, setPendingLoads] = useState(0);
@@ -57,21 +61,30 @@ export function LoadingTransition({ children, ready }: LoadingTransitionProps) {
 
 	useEffect(() => {
 		if (!canComplete) return;
-		const remaining = Math.max(0, MINIMUM_LOADING_TIME - (Date.now() - startedAt.current));
+		const remaining = showInitialLoader
+			? Math.max(0, MINIMUM_LOADING_TIME - (Date.now() - startedAt.current))
+			: 0;
 		const completeTimer = window.setTimeout(() => setProgress(100), remaining);
 		const revealTimer = window.setTimeout(() => {
-			setLoaderVisible(false);
-			setContentVisible(true);
+			if (showInitialLoader) {
+				hasShownInitialLoadingTransition = true;
+				setLoaderVisible(false);
+				setContentVisible(true);
+			}
+			setInitialLoadComplete(true);
 		}, remaining + COMPLETION_TIME);
 		return () => {
 			window.clearTimeout(completeTimer);
 			window.clearTimeout(revealTimer);
 		};
-	}, [canComplete]);
+	}, [canComplete, showInitialLoader]);
+
+	const showTopLoadingBar = initialLoadComplete && (!ready || pendingLoads > 0);
 
 	return (
 		<PageLoadingContext.Provider value={loadingContext}>
 			<div className="relative min-h-dvh bg-[#f6f8fc]">
+				{showTopLoadingBar && <RouteLoadingBar />}
 				{ready && (
 					<div
 						className={`min-h-dvh transition-opacity duration-300 ${contentVisible ? "opacity-100" : "opacity-0"}`}

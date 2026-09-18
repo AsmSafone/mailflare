@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { CardGridSkeleton } from "@/components/page-skeletons";
+import { SectionRowSkeleton } from "@/components/page-skeletons";
 import { clearMailboxesCache } from "@/components/mailbox-provider-utils";
 import { authFetch } from "@/lib/auth/client";
 import type { CurrentAccountResponse, Domain, MailboxOwner, MailboxesResponse } from "./types";
@@ -227,14 +227,14 @@ export default function MailboxesPage() {
 					</span>
 				</div> */}
 				{mailboxes.isLoading && (
-					<CardGridSkeleton />
+					<SectionRowSkeleton />
 				)}
 				{!mailboxes.isLoading && (mailboxes.data?.mailboxes ?? []).length === 0 && (
 					<p className="rounded-2xl bg-white px-5 py-4 text-sm text-neutral-500">
 						No mailboxes yet
 					</p>
 				)}
-				<div className="grid gap-3">
+				<div className="divide-y divide-neutral-100 overflow-hidden rounded-3xl bg-white">
 					{(mailboxes.data?.mailboxes ?? []).map((mailbox) => {
 						const mailboxWithHostname = {
 							...mailbox,
@@ -245,7 +245,7 @@ export default function MailboxesPage() {
 							<Link
 								key={mailbox.id}
 								href={`/mailboxes/${mailbox.id}`}
-								className="group flex items-start gap-4 rounded-3xl bg-white p-5 transition-colors hover:bg-blue-50/10"
+								className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-blue-50/40"
 							>
 								<span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
 									{getMailboxName(mailboxWithHostname).trim().charAt(0).toUpperCase() || "?"}

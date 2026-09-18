@@ -19,7 +19,7 @@ import { authFetch } from "@/lib/auth/client";
 import type { DnsStatusSummary, Domain, DomainDnsView, DomainPreflight } from "./types";
 import DomainItemCard from "./DomainItemCard";
 import DomainDnsDetails from "./DomainDnsDetails";
-import { CardGridSkeleton } from "@/components/page-skeletons";
+import { SectionRowSkeleton } from "@/components/page-skeletons";
 import { checkDomain } from "./utils";
 
 export default function DomainsPage() {
@@ -238,7 +238,7 @@ export default function DomainsPage() {
 					<span className="text-sm text-neutral-500">{(data?.domains ?? []).length} total</span>
 				</div> */}
         {isLoading && (
-          <CardGridSkeleton />
+          <SectionRowSkeleton />
         )}
         {!isLoading && (data?.domains ?? []).length === 0 && (
           <p className="rounded-2xl bg-white px-5 py-4 text-sm text-neutral-500">

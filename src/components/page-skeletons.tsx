@@ -1,8 +1,8 @@
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
-import { LoadingTransition } from "@/components/loading-transition";
+import { RouteLoadingBar } from "@/components/route-loading-bar";
 
 export function PageSkeleton() {
-	return <LoadingTransition ready />;
+	return <RouteLoadingBar />;
 }
 
 export function ListPageSkeleton() {
@@ -68,6 +68,18 @@ export function CardGridSkeleton() {
 					</div>
 				</div>
 			))}
+		</div>
+	);
+}
+
+export function SectionRowSkeleton() {
+	return (
+		<div className="flex min-h-20 items-center gap-4 rounded-3xl bg-white px-5 py-4">
+			<Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+			<div className="min-w-0 flex-1 space-y-2">
+				<Skeleton className="h-4 w-2/5 max-w-48" />
+				<Skeleton className="h-3.5 w-3/5 max-w-80" />
+			</div>
 		</div>
 	);
 }

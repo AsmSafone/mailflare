@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CardGridSkeleton } from "@/components/page-skeletons";
+import { SectionRowSkeleton } from "@/components/page-skeletons";
 import type { Webhook, WebhookEvent } from "./types";
 import {
 	WEBHOOK_EVENTS,
@@ -114,7 +114,7 @@ export default function WebhooksPage() {
 			)}
 
 			{webhooks.isLoading ? (
-				<CardGridSkeleton />
+				<SectionRowSkeleton />
 			) : !webhooks.data?.length ? (
 				<Card>
 					<CardContent className="pt-6 text-sm text-neutral-500">
@@ -122,68 +122,103 @@ export default function WebhooksPage() {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="space-y-4">
+				<section className="divide-y divide-neutral-100 overflow-hidden rounded-3xl bg-white">
 					{webhooks.data.map((hook) => (
-						<Card key={hook.id}>
-							<CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-								<div className="min-w-0">
-									<CardTitle className="truncate text-base">{hook.url}</CardTitle>
+						<div key={hook.id} className="px-5 py-6 sm:px-6">
+							<div className="flex flex-wrap items-start justify-between gap-4">
+								<div className="min-w-0 flex-1">
+									<h2 className="truncate text-base font-semibold text-neutral-900">{hook.url}</h2>
 									{hook.description && (
 										<p className="mt-1 text-sm text-neutral-500">{hook.description}</p>
 									)}
-									<div className="mt-2 flex flex-wrap gap-1">
+									<div className="mt-3 flex flex-wrap gap-1.5">
 										{hook.events.map((event) => (
 											<Badge key={event} variant="secondary">
 												{event}
 											</Badge>
 										))}
-										{!hook.enabled && <Badge variant="outline">Disabled</Badge>}
 									</div>
 								</div>
-								<div className="flex items-center gap-2">
-									<Switch checked={hook.enabled} onCheckedChange={() => toggle.mutate(hook)} />
+								<div className="flex items-center gap-2 rounded-full">
+									<span className="text-xs font-medium text-neutral-600">{hook.enabled ? "Enabled" : "Disabled"}</span>
+									<Switch
+										checked={hook.enabled}
+										onCheckedChange={() => toggle.mutate(hook)}
+										aria-label={`${hook.enabled ? "Disable" : "Enable"} ${hook.url}`}
+									/>
+								</div>
+							</div>
+							<div className="mt-5 grid grid-cols-2 overflow-hidden rounded-2xl bg-neutral-50 sm:grid-cols-5">
+								<div className="px-4 py-3">
+									<span className="block text-lg font-semibold text-neutral-900">{hook.stats.total}</span>
+									<span className="block text-xs text-neutral-500">Deliveries</span>
+								</div>
+								<div className="px-4 py-3">
+									<span className={`block text-lg font-semibold ${hook.stats.delivered ? "text-green-600" : "text-neutral-400"}`}>
+										{hook.stats.delivered}
+									</span>
+									<span className="block text-xs text-neutral-500">Delivered</span>
+								</div>
+								<div className="px-4 py-3">
+									<span className={`block text-lg font-semibold ${hook.stats.pending ? "text-amber-600" : "text-neutral-400"}`}>
+										{hook.stats.pending}
+									</span>
+									<span className="block text-xs text-neutral-500">In flight</span>
+								</div>
+								<div className="px-4 py-3">
+									<span className={`block text-lg font-semibold ${hook.stats.failing ? "text-red-600" : "text-neutral-400"}`}>
+										{hook.stats.failing}
+									</span>
+									<span className="block text-xs text-neutral-500">Failed</span>
+								</div>
+								<div className="px-4 py-3">
+									<span className="block text-lg font-semibold text-neutral-500">{hook.maxAttempts}</span>
+									<span className="block text-xs text-neutral-500">Max attempts</span>
+								</div>
+							</div>
+
+							<div className="mt-4 flex flex-wrap items-center gap-3">
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setExpanded(expanded === hook.id ? null : hook.id)}
+								>
+									<Activity className="h-4 w-4" />
+									{expanded === hook.id ? "Hide delivery history" : "Delivery history"}
+								</Button>
+								<div className="ml-auto flex flex-wrap items-center gap-2">
+									{testResult[hook.id] && (
+										<p className="mr-1 text-sm text-neutral-600">
+											Test delivery: <span className="font-medium">{testResult[hook.id]}</span>
+										</p>
+									)}
 									<Button
-										variant="outline"
+										variant="ghost"
 										size="sm"
 										onClick={() => runTest.mutate(hook.id)}
 										disabled={runTest.isPending}
 									>
 										<Send className="h-4 w-4" /> Test
 									</Button>
-									<Button variant="ghost" size="sm" onClick={() => remove.mutate(hook.id)}>
-										<Trash2 className="h-4 w-4 text-red-600" />
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => remove.mutate(hook.id)}
+										aria-label={`Delete ${hook.url}`}
+									>
+										<Trash2 className="h-4 w-4" /> Delete
 									</Button>
 								</div>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="flex flex-wrap gap-4 text-sm text-neutral-600">
-									<span>{hook.stats.total} deliveries</span>
-									<span className="text-green-600">{hook.stats.delivered} delivered</span>
-									<span className="text-amber-600">{hook.stats.pending} in flight</span>
-									<span className="text-red-600">{hook.stats.failing} failed</span>
-									<span className="text-neutral-400">up to {hook.maxAttempts} attempts</span>
+							</div>
+
+							{expanded === hook.id && (
+								<div className="mt-4">
+									<WebhookDeliveries webhookId={hook.id} />
 								</div>
-
-								{testResult[hook.id] && (
-									<p className="text-sm text-neutral-600">
-										Test delivery: <span className="font-medium">{testResult[hook.id]}</span>
-									</p>
-								)}
-
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => setExpanded(expanded === hook.id ? null : hook.id)}
-								>
-									<Activity className="h-4 w-4" />
-									{expanded === hook.id ? "Hide deliveries" : "View deliveries"}
-								</Button>
-
-								{expanded === hook.id && <WebhookDeliveries webhookId={hook.id} />}
-							</CardContent>
-						</Card>
+							)}
+						</div>
 					))}
-				</div>
+				</section>
 			)}
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -28,7 +28,7 @@ export default function DashboardLayout({
               <AdminNav />
             </aside>
             <div className="flex min-h-0 min-w-0 flex-col">
-              <span className="fixed top-6 right-6 flex items-center gap-2">
+              <span className="fixed top-2 right-4 flex items-center gap-4">
                 <LicenseIndicator />
                 <MailboxSelector />
               </span>
