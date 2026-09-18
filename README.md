@@ -41,9 +41,23 @@ A [Paid Worker](https://developers.cloudflare.com/workers/platform/pricing/) pla
 
 Getting started takes three steps:
 
-1. **Deploy the app.** Click **Deploy to Cloudflare** and keep the app name as `mailflare`. The app will not work correctly under another Worker name.
-2. **Complete setup.** Open the deployed app and follow `/setup` to check the installation and create your admin account.
-3. **Connect your domain.** Add a domain managed by the same Cloudflare account. Mailflare configures its email routing and helps you create the first mailbox.
+### Deploy with GitHub Actions (No local install needed)
+
+You can set up and deploy Mailflare entirely from GitHub without installing anything locally:
+
+1. **Fork or push** this repository to your GitHub account.
+2. In your GitHub repository, go to **Settings → Secrets and variables → Actions** and add:
+   - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API Token (needs Workers, D1, R2, Queues, DNS, and Email Routing permissions).
+   - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (from the Cloudflare dashboard Overview).
+   - *(Optional)* `CF_TOKEN`: If you wish to use a separate scoped token for runtime Email/DNS. If omitted, `CLOUDFLARE_API_TOKEN` is used.
+3. Go to the **Actions** tab, select **Deploy to Cloudflare**, and click **Run workflow** (or simply push to `main`).
+4. Once completed, the workflow output summary provides the deployed Worker URL. Open `https://<your-worker-url>/setup` to complete the initial setup and connect your domain!
+
+### Option 2: Deploy to Cloudflare Button
+
+1. Click **Deploy to Cloudflare** above and keep the app name as `mailflare`. The app will not work correctly under another Worker name.
+2. Complete setup: Open the deployed app and follow `/setup` to check the installation and create your admin account.
+3. Connect your domain: Add a domain managed by the same Cloudflare account. Mailflare configures its email routing and helps you create the first mailbox.
 
 ⚠️ IMPORTANT: **`CF_TOKEN` is required during deployment**. Create a scoped [Cloudflare API token with the following permissions](https://github.com/hieunc229/mailflare/issues/24#issuecomment-5523686105) for the domains you want to connect.
 - All accounts - Email Sending:Edit, DNS Settings:Edit, Email Routing Addresses:Edit

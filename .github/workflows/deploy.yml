@@ -1,0 +1,149 @@
+name: Deploy to Cloudflare
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: "Apply remote D1 database migrations"
+        type: boolean
+        default: true
+      cf_token:
+        description: "(Optional) Runtime CF_TOKEN if overriding secret"
+        required: false
+        type: string
+      cloudflare_api_token:
+        description: "(Optional) Cloudflare API Token if overriding secret"
+        required: false
+        type: string
+      cloudflare_account_id:
+        description: "(Optional) Cloudflare Account ID if overriding secret"
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: deploy-cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare_api_token || secrets.CLOUDFLARE_API_TOKEN || secrets.CF_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RUNTIME_CF_TOKEN: ${{ inputs.cf_token || secrets.CF_TOKEN || inputs.cloudflare_api_token || secrets.CLOUDFLARE_API_TOKEN }}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY || vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+      TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+      GITHUB_UPDATE_TOKEN: ${{ secrets.GITHUB_UPDATE_TOKEN || secrets.GITHUB_TOKEN }}
+      APPLY_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_migrations || 'true' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Validate Cloudflare Credentials
+        run: |
+          set -euo pipefail
+          MISSING=0
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::Missing CLOUDFLARE_API_TOKEN. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions)."
+            MISSING=1
+          fi
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::Missing CLOUDFLARE_ACCOUNT_ID. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions)."
+            MISSING=1
+          fi
+
+          if [ "$MISSING" -eq 1 ]; then
+            echo ""
+            echo "================================================================="
+            echo "❌ REQUIRED SECRETS NOT FOUND"
+            echo "To deploy Mailflare using GitHub Actions without local install:"
+            echo "1. Go to repository Settings -> Secrets and variables -> Actions"
+            echo "2. Add secret CLOUDFLARE_API_TOKEN (Cloudflare API Token with Workers, D1, R2, Queues, DNS, and Email Routing permissions)"
+            echo "3. Add secret CLOUDFLARE_ACCOUNT_ID (from Cloudflare dashboard overview)"
+            echo "================================================================="
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Provision Cloudflare Resources (D1, R2, Queues)
+        run: node scripts/setup-cloudflare.mjs
+
+      - name: Build Application Bundle
+        run: |
+          npm run db:bundle
+          npx opennextjs-cloudflare build
+
+      - name: Deploy Worker to Cloudflare
+        id: deploy
+        run: |
+          set -o pipefail
+          OPEN_NEXT_DEPLOY=true npx wrangler deploy | tee deploy-output.txt
+
+          WORKER_URL=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy-output.txt | head -n 1 || true)
+          if [ -z "$WORKER_URL" ]; then
+            WORKER_URL="https://mailflare.workers.dev"
+          fi
+          echo "worker_url=${WORKER_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Worker Secrets
+        run: |
+          set -euo pipefail
+          echo "Setting runtime CF_TOKEN..."
+          echo "${RUNTIME_CF_TOKEN}" | npx wrangler secret put CF_TOKEN
+
+          if [ -n "${TURNSTILE_SECRET_KEY:-}" ]; then
+            echo "Setting TURNSTILE_SECRET_KEY..."
+            echo "${TURNSTILE_SECRET_KEY}" | npx wrangler secret put TURNSTILE_SECRET_KEY
+          fi
+
+          if [ -n "${GITHUB_UPDATE_TOKEN:-}" ]; then
+            echo "Setting GITHUB_UPDATE_TOKEN..."
+            echo "${GITHUB_UPDATE_TOKEN}" | npx wrangler secret put GITHUB_UPDATE_TOKEN
+          fi
+
+      - name: Apply Remote D1 Database Migrations
+        if: env.APPLY_MIGRATIONS == 'true'
+        run: |
+          echo "Applying pending D1 database migrations..."
+          npx wrangler d1 migrations apply DB --remote
+
+      - name: Output Deployment Summary
+        if: always()
+        run: |
+          WORKER_URL="${{ steps.deploy.outputs.worker_url || 'https://mailflare.workers.dev' }}"
+          SETUP_URL="${WORKER_URL}/setup"
+
+          cat << EOF >> "$GITHUB_STEP_SUMMARY"
+          # 🚀 Mailflare Deployment Summary
+
+          Mailflare has been successfully built and deployed to Cloudflare Workers!
+
+          ### 🔗 Deployed Application
+          - **Worker URL:** [${WORKER_URL}](${WORKER_URL})
+          - **Setup Wizard:** [${SETUP_URL}](${SETUP_URL})
+
+          ### 📋 Complete Your Setup
+          1. **Open Setup Wizard:** Visit [${SETUP_URL}](${SETUP_URL}) in your browser.
+          2. **Create Admin Account:** Follow the on-screen prompt to create your initial administrator account.
+          3. **Connect Your Domain:** Add your domain managed by the same Cloudflare account to automatically configure Email Routing and DNS records.
+          4. **Create Mailbox:** Set up your primary inbox address and start sending and receiving emails!
+
+          ---
+          *Deployed via GitHub Actions without requiring local installation.*
+          EOF

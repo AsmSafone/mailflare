@@ -52,6 +52,36 @@ Your inbox should be ready to send and receive emails
 
 ---
 
+## GitHub Actions deployment (Zero local install)
+
+If you do not want to install Node.js, npm, or Wrangler on your computer, you can run the complete setup and deployment flow through GitHub Actions:
+
+### 1. Configure repository secrets
+In your GitHub repository, navigate to **Settings → Secrets and variables → Actions** and add:
+- `CLOUDFLARE_API_TOKEN`: Cloudflare API token with permissions for:
+  - Account: **Workers Scripts:Edit**, **D1:Edit**, **R2 Storage:Edit**, **Queues:Edit**, **Workers Durable Objects:Edit**, **Workers Rate Limiting:Edit**
+  - All accounts: **Email Sending:Edit**, **Email Routing Addresses:Edit**
+  - All zones: **DNS Settings:Edit**, **Email Routing Rules:Edit**, **Zone Settings:Edit**, **DNS:Edit**, **Zone:Read**
+- `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (available in the right sidebar of the Cloudflare dashboard Overview).
+- *(Optional)* `CF_TOKEN`: If you want a separate scoped token for the runtime Worker. If omitted, `CLOUDFLARE_API_TOKEN` is automatically used.
+- *(Optional)* `TURNSTILE_SECRET_KEY` & `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: If you wish to enable Cloudflare Turnstile captcha on login and onboarding.
+
+### 2. Run the deployment workflow
+1. Go to the **Actions** tab in your repository.
+2. Select **Deploy to Cloudflare**.
+3. Click **Run workflow** (or simply commit and push to `main` / `master`).
+4. The workflow will automatically:
+   - Check if D1 database `mailflare` exists (and create it if it does not).
+   - Inject the allocated `database_id` into the deployment configuration.
+   - Idempotently create the R2 bucket `mailflare-raw` and queues (`mailflare-inbound`, `mailflare-outbound`).
+   - Build and bundle the application with OpenNext.
+   - Deploy the complete Worker with cron triggers, Queues, R2, and Durable Objects.
+   - Set the runtime secrets (`CF_TOKEN`, etc.).
+   - Apply pending D1 database migrations remotely.
+5. In the workflow run summary, locate the deployed **Worker URL** and open `https://<your-worker-url>/setup` to complete the initial admin account setup and domain connection.
+
+---
+
 ## Manual deployment
 
 Install dependencies, configure the Cloudflare bindings in `wrangler.jsonc`, and run:
