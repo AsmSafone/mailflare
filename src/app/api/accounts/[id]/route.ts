@@ -4,7 +4,6 @@ import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { updateManagedAccountSchema } from "@/lib/validators";
 import { requireTeamAdmin } from "../utils";
-import { getLicenseEntitlements } from "@/lib/licenses/service";
 import type { AccountRouteParams } from "./types";
 import { selectAccountById, updateAccountCredentials } from "./utils";
 import { deleteUserSessions } from "@/lib/auth/session";
@@ -26,7 +25,7 @@ export async function GET(request: Request, { params }: AccountRouteParams) {
 			disabled: account.disabled,
 			canManageMailboxes: account.canManageMailboxes,
 			forwardingEmail: account.forwardingEmail,
-			canForwardEmail: (await getLicenseEntitlements(access.env)).canForwardEmail,
+			canForwardEmail: true,
 			hasAvatar: !!account.avatarKey,
 		},
 	});

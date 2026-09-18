@@ -5,7 +5,6 @@ import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/cookies";
-import { getLicenseEntitlements } from "@/lib/licenses/service";
 import { syncPersonalIdentity } from "@/lib/profile/sync";
 import type { UpdateProfileInput } from "./types";
 import { parseUpdateProfileRequest } from "./utils";
@@ -42,7 +41,7 @@ export async function PATCH(request: Request) {
 			name: parsed.name,
 			resetEmail: parsed.resetEmail,
 			forwardingEmail,
-			canForwardEmail,
+			canForwardEmail: true,
 		},
 	});
 }

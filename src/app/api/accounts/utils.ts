@@ -4,7 +4,6 @@ import type { getDb } from "@/db";
 import { domains, mailboxes, users } from "@/db/schema";
 import { assertAdmin } from "@/lib/auth/admin";
 import { requireUser } from "@/lib/auth/cookies";
-import { getLicenseEntitlements } from "@/lib/licenses/service";
 import { getEnv } from "@/lib/cloudflare";
 
 type Db = ReturnType<typeof getDb>;

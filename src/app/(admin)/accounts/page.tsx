@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { authFetch } from "@/lib/auth/client";
-import { LicenseRequiredOverlay } from "@/components/license-required-overlay";
 import type { Account, AccountResponse, Domain } from "./types";
 
 export default function AccountsPage() {
@@ -23,7 +22,6 @@ export default function AccountsPage() {
 	const [saving, setSaving] = useState(false);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [message, setMessage] = useState<string | null>(null);
-	const [teamRequired, setTeamRequired] = useState(false);
 
 	async function loadAccounts() {
 		const response = await authFetch("/api/accounts");
@@ -40,9 +38,7 @@ export default function AccountsPage() {
 			setDomains(data.domains ?? []);
 			setDomainId(data.domains?.[0]?.id ?? "");
 		}).catch((error) => {
-			const text = error instanceof Error ? error.message : "Unable to load accounts";
-			setTeamRequired(/team license/i.test(text));
-			setMessage(text);
+			setMessage(error instanceof Error ? error.message : "Unable to load accounts");
 		}).finally(() => setLoading(false));
 	}, []);
 
@@ -66,11 +62,20 @@ export default function AccountsPage() {
 	}
 
 	return <div className="space-y-6">
-		<div className="flex items-center justify-between gap-4"><div><h1 className="text-3xl font-medium text-neutral-900">Accounts</h1><p className="mt-2 text-sm text-neutral-500">Manage Team accounts and their inboxes.</p></div>{!teamRequired && <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />New account</Button>}</div>
-		<div className="relative">{teamRequired && <LicenseRequiredOverlay required="Team"><div className="min-h-48 rounded-3xl bg-white" /></LicenseRequiredOverlay>}<div className="grid gap-3">
+		<div className="flex items-center justify-between gap-4">
+			<div>
+				<h1 className="text-3xl font-medium text-neutral-900">Accounts</h1>
+				<p className="mt-2 text-sm text-neutral-500">Manage user accounts and their inboxes.</p>
+			</div>
+			<Button onClick={() => setCreateOpen(true)}>
+				<Plus className="h-4 w-4" />
+				New account
+			</Button>
+		</div>
+		<div className="grid gap-3">
 			{loading && <p className="text-sm text-neutral-500">Loading...</p>}
 			{accounts.map((account) => <Link key={account.id} href={`/accounts/${account.id}`} className="flex items-center gap-4 rounded-3xl bg-white p-5 transition-colors hover:bg-blue-50/40"><span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 font-semibold text-blue-700">{account.name.charAt(0).toUpperCase()}{account.hasAvatar && <img src={`/api/accounts/${account.id}/avatar`} alt="" className="absolute inset-0 h-full w-full object-cover" />}</span><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate font-semibold text-neutral-900">{account.name}</span><span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium capitalize text-neutral-600">{account.role}</span></span><span className="block truncate text-sm text-neutral-500">{account.email}</span></span></Link>)}
-		</div></div>
+		</div>
 		<Dialog open={createOpen} onOpenChange={setCreateOpen}>
 			<DialogContent>
 				<DialogHeader>

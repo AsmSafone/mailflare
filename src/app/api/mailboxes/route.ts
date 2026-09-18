@@ -5,7 +5,6 @@ import { getDb } from "@/db";
 import { domains, mailboxAliases, mailboxes, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/cookies";
 import { newId } from "@/lib/ids";
-import { getLicenseEntitlements } from "@/lib/licenses/service";
 import { tracksAccountIdentity } from "@/lib/profile/identity-utils";
 import { mailboxSchema } from "@/lib/validators";
 import { ensureMailboxDomainRouting, getMailboxDomainAddresses } from "@/lib/mailboxes/domain-addresses";
@@ -16,7 +15,6 @@ export async function GET(request: Request) {
 	const user = await requireUser(env, request);
 	const db = getDb(env);
 	const rows = await ensurePersonalMailbox(env, db, user);
-	const entitlements = await getLicenseEntitlements(env);
 	return NextResponse.json({
 		mailboxes: await Promise.all(rows.map(async (mailbox) => ({
 			...mailbox,

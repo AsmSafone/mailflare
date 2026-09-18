@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
 import type { Branding } from "./types";
-import { getLicenseEntitlements } from "@/lib/licenses/service";
 
 export const APP_SETTINGS_ID = "default";
 export const DEFAULT_APP_NAME = "Mailflare";
