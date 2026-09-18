@@ -48,7 +48,7 @@ You can set up and deploy Mailflare entirely from GitHub without installing anyt
 1. **Fork or push** this repository to your GitHub account.
 2. In your GitHub repository, go to **Settings → Secrets and variables → Actions** and add:
    - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API Token (needs Workers, D1, R2, Queues, DNS, and Email Routing permissions).
-   - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (from the Cloudflare dashboard Overview).
+   - *(Optional)* `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (automatically resolved from your token if omitted).
    - *(Optional)* `CF_TOKEN`: If you wish to use a separate scoped token for runtime Email/DNS. If omitted, `CLOUDFLARE_API_TOKEN` is used.
 3. Go to the **Actions** tab, select **Deploy to Cloudflare**, and click **Run workflow** (or simply push to `main`).
 4. Once completed, the workflow output summary provides the deployed Worker URL. Open `https://<your-worker-url>/setup` to complete the initial setup and connect your domain!

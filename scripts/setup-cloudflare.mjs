@@ -18,8 +18,66 @@ function run(cmd, options = {}) {
 	}
 }
 
+async function resolveAccountId(token) {
+	if (process.env.CLOUDFLARE_ACCOUNT_ID?.trim()) {
+		return process.env.CLOUDFLARE_ACCOUNT_ID.trim();
+	}
+
+	if (!token) {
+		return null;
+	}
+
+	// 1. Try GET /accounts
+	try {
+		const res = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (res.ok) {
+			const data = await res.json();
+			if (data.success && Array.isArray(data.result) && data.result.length > 0) {
+				const acc = data.result[0];
+				console.log(`🔍 Automatically resolved Cloudflare Account: ${acc.name || "Default"} (${acc.id})`);
+				return acc.id;
+			}
+		}
+	} catch {}
+
+	// 2. Try GET /zones (zones contain account metadata)
+	try {
+		const res = await fetch("https://api.cloudflare.com/client/v4/zones", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (res.ok) {
+			const data = await res.json();
+			if (data.success && Array.isArray(data.result) && data.result[0]?.account?.id) {
+				const acc = data.result[0].account;
+				console.log(`🔍 Automatically resolved Cloudflare Account from zone: ${acc.name || "Default"} (${acc.id})`);
+				return acc.id;
+			}
+		}
+	} catch {}
+
+	// 3. Try wrangler whoami
+	try {
+		const whoami = run("npx wrangler whoami", { silent: true, ignoreError: true });
+		const match = whoami.match(/Account ID:\s*([0-9a-f]{32})/i) || whoami.match(/([0-9a-f]{32})/i);
+		if (match) {
+			console.log(`🔍 Automatically resolved Cloudflare Account via wrangler: (${match[1]})`);
+			return match[1];
+		}
+	} catch {}
+
+	return null;
+}
+
 async function main() {
 	console.log("🚀 Provisioning and configuring Cloudflare resources for Mailflare...\n");
+
+	const token = process.env.CLOUDFLARE_API_TOKEN || process.env.CF_TOKEN;
+	const resolvedAccountId = await resolveAccountId(token);
+	if (resolvedAccountId) {
+		process.env.CLOUDFLARE_ACCOUNT_ID = resolvedAccountId;
+	}
 
 	const d1DatabaseName = process.env.D1_DATABASE_NAME || "mailflare";
 	const r2BucketName = process.env.R2_BUCKET_NAME || "mailflare-raw";

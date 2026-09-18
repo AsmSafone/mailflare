@@ -62,7 +62,7 @@ In your GitHub repository, navigate to **Settings → Secrets and variables → 
   - Account: **Workers Scripts:Edit**, **D1:Edit**, **R2 Storage:Edit**, **Queues:Edit**, **Workers Durable Objects:Edit**, **Workers Rate Limiting:Edit**
   - All accounts: **Email Sending:Edit**, **Email Routing Addresses:Edit**
   - All zones: **DNS Settings:Edit**, **Email Routing Rules:Edit**, **Zone Settings:Edit**, **DNS:Edit**, **Zone:Read**
-- `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (available in the right sidebar of the Cloudflare dashboard Overview).
+- *(Optional)* `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID. If omitted, the workflow automatically resolves your Account ID from the API token.
 - *(Optional)* `CF_TOKEN`: If you want a separate scoped token for the runtime Worker. If omitted, `CLOUDFLARE_API_TOKEN` is automatically used.
 - *(Optional)* `TURNSTILE_SECRET_KEY` & `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: If you wish to enable Cloudflare Turnstile captcha on login and onboarding.
 

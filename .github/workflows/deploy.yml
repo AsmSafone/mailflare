@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       cloudflare_account_id:
-        description: "(Optional) Cloudflare Account ID if overriding secret"
+        description: "(Optional) Cloudflare Account ID (auto-resolved if omitted)"
         required: false
         type: string
   push:
@@ -53,29 +53,72 @@ jobs:
           node-version: 22
           cache: "npm"
 
-      - name: Validate Cloudflare Credentials
+      - name: Validate Credentials & Auto-resolve Account ID
         run: |
           set -euo pipefail
-          MISSING=0
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
             echo "::error::Missing CLOUDFLARE_API_TOKEN. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions)."
-            MISSING=1
-          fi
-          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo "::error::Missing CLOUDFLARE_ACCOUNT_ID. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions)."
-            MISSING=1
-          fi
-
-          if [ "$MISSING" -eq 1 ]; then
             echo ""
             echo "================================================================="
-            echo "❌ REQUIRED SECRETS NOT FOUND"
+            echo "❌ REQUIRED SECRET NOT FOUND: CLOUDFLARE_API_TOKEN"
             echo "To deploy Mailflare using GitHub Actions without local install:"
             echo "1. Go to repository Settings -> Secrets and variables -> Actions"
             echo "2. Add secret CLOUDFLARE_API_TOKEN (Cloudflare API Token with Workers, D1, R2, Queues, DNS, and Email Routing permissions)"
-            echo "3. Add secret CLOUDFLARE_ACCOUNT_ID (from Cloudflare dashboard overview)"
             echo "================================================================="
             exit 1
+          fi
+
+          if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Using explicitly configured CLOUDFLARE_ACCOUNT_ID."
+            echo "CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}" >> "$GITHUB_ENV"
+          else
+            echo "CLOUDFLARE_ACCOUNT_ID not provided. Resolving automatically from Cloudflare API..."
+            ACCOUNT_ID=$(node -e '
+              async function getAccountId() {
+                const token = process.env.CLOUDFLARE_API_TOKEN;
+                // 1. Try GET /accounts
+                try {
+                  const res = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.result) && data.result.length > 0) {
+                      return data.result[0].id;
+                    }
+                  }
+                } catch {}
+
+                // 2. Try GET /zones
+                try {
+                  const res = await fetch("https://api.cloudflare.com/client/v4/zones", {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.result) && data.result[0]?.account?.id) {
+                      return data.result[0].account.id;
+                    }
+                  }
+                } catch {}
+
+                return "";
+              }
+              getAccountId().then((id) => {
+                if (id) {
+                  process.stdout.write(id);
+                } else {
+                  process.exit(1);
+                }
+              }).catch(() => process.exit(1));
+            ' || true)
+
+            if [ -n "$ACCOUNT_ID" ]; then
+              echo "✅ Successfully resolved Cloudflare Account ID: ${ACCOUNT_ID}"
+              echo "CLOUDFLARE_ACCOUNT_ID=${ACCOUNT_ID}" >> "$GITHUB_ENV"
+            else
+              echo "::warning::Could not automatically resolve Cloudflare Account ID from API token. Wrangler will attempt discovery during deploy. If it fails, add CLOUDFLARE_ACCOUNT_ID to GitHub secrets."
+            fi
           fi
 
       - name: Install dependencies
