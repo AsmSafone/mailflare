@@ -88,54 +88,91 @@ async function main() {
 	console.log(`📦 Checking D1 Database '${d1DatabaseName}'...`);
 	let databaseId = null;
 
-	try {
-		const listOutput = run("npx wrangler d1 list --json", { silent: true });
-		const d1Databases = JSON.parse(listOutput);
-		const existing = Array.isArray(d1Databases)
-			? d1Databases.find((db) => db.name === d1DatabaseName)
-			: null;
+	// Try Cloudflare REST API first if token and accountId are available
+	if (token && process.env.CLOUDFLARE_ACCOUNT_ID) {
+		const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+		try {
+			// Check existing databases
+			const listRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			if (listRes.ok) {
+				const listData = await listRes.json();
+				if (listData.success && Array.isArray(listData.result)) {
+					const existing = listData.result.find((db) => db.name === d1DatabaseName);
+					if (existing && (existing.uuid || existing.id)) {
+						databaseId = existing.uuid || existing.id;
+						console.log(`✅ Found existing D1 database '${d1DatabaseName}' via API (ID: ${databaseId})`);
+					}
+				}
+			}
 
-		if (existing && existing.uuid) {
-			databaseId = existing.uuid;
-			console.log(`✅ Found existing D1 database '${d1DatabaseName}' (ID: ${databaseId})`);
+			if (!databaseId) {
+				console.log(`Creating D1 database '${d1DatabaseName}' via Cloudflare API...`);
+				const createRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database`, {
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ name: d1DatabaseName }),
+				});
+				const createData = await createRes.json();
+				if (createData.success && createData.result && (createData.result.uuid || createData.result.id)) {
+					databaseId = createData.result.uuid || createData.result.id;
+					console.log(`✅ Created D1 database '${d1DatabaseName}' via API (ID: ${databaseId})`);
+				}
+			}
+		} catch (err) {
+			console.warn(`⚠️ Cloudflare D1 REST API query: ${err.message}`);
 		}
-	} catch (err) {
-		console.warn(`⚠️ Could not query existing D1 databases list: ${err.message}`);
 	}
 
+	// Fallback to Wrangler CLI if REST API was not used or failed
 	if (!databaseId) {
-		console.log(`Creating D1 database '${d1DatabaseName}'...`);
-		const createOutput = run(`npx wrangler d1 create ${d1DatabaseName} --json`, { ignoreError: true });
+		console.log(`Querying D1 database with Wrangler CLI...`);
 		try {
-			const parsed = JSON.parse(createOutput);
-			databaseId = parsed.database_id || parsed.uuid;
-		} catch {
+			const listOutput = run("npx wrangler d1 list", { silent: true, ignoreError: true });
+			const lines = listOutput.split("\n");
+			for (const line of lines) {
+				if (line.includes(d1DatabaseName)) {
+					const match = line.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+					if (match) {
+						databaseId = match[0];
+						console.log(`✅ Found existing D1 database '${d1DatabaseName}' via Wrangler (ID: ${databaseId})`);
+						break;
+					}
+				}
+			}
+		} catch {}
+
+		if (!databaseId) {
+			console.log(`Creating D1 database '${d1DatabaseName}' via Wrangler...`);
+			const createOutput = run(`npx wrangler d1 create ${d1DatabaseName}`, { ignoreError: true });
 			const match = createOutput.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
 			if (match) {
 				databaseId = match[0];
-			}
-		}
-
-		if (!databaseId) {
-			// Fallback: retry listing
-			try {
-				const listOutput = run("npx wrangler d1 list --json", { silent: true });
-				const d1Databases = JSON.parse(listOutput);
-				const existing = Array.isArray(d1Databases)
-					? d1Databases.find((db) => db.name === d1DatabaseName)
-					: null;
-				if (existing && existing.uuid) {
-					databaseId = existing.uuid;
+				console.log(`✅ Created D1 database '${d1DatabaseName}' via Wrangler (ID: ${databaseId})`);
+			} else {
+				// Final check: re-list with wrangler
+				const listOutput = run("npx wrangler d1 list", { silent: true, ignoreError: true });
+				const lines = listOutput.split("\n");
+				for (const line of lines) {
+					if (line.includes(d1DatabaseName)) {
+						const m = line.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+						if (m) {
+							databaseId = m[0];
+							console.log(`✅ Located D1 database '${d1DatabaseName}' (ID: ${databaseId})`);
+							break;
+						}
+					}
 				}
-			} catch {
-				// ignore
+			}
+
+			if (!databaseId) {
+				throw new Error(`Failed to create or obtain database_id for D1 database '${d1DatabaseName}'.\nOutput:\n${createOutput}`);
 			}
 		}
-
-		if (!databaseId) {
-			throw new Error(`Failed to create or obtain database_id for D1 database '${d1DatabaseName}'.\nOutput: ${createOutput}`);
-		}
-		console.log(`✅ Created D1 database '${d1DatabaseName}' (ID: ${databaseId})`);
 	}
 
 	// Inject database_id into wrangler.jsonc if missing

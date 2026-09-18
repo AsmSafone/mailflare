@@ -53,73 +53,108 @@ jobs:
           node-version: 22
           cache: "npm"
 
-      - name: Validate Credentials & Auto-resolve Account ID
+      - name: Verify Cloudflare API Token & Auto-resolve Account ID
         run: |
-          set -euo pipefail
-          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo "::error::Missing CLOUDFLARE_API_TOKEN. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions)."
-            echo ""
-            echo "================================================================="
-            echo "❌ REQUIRED SECRET NOT FOUND: CLOUDFLARE_API_TOKEN"
-            echo "To deploy Mailflare using GitHub Actions without local install:"
-            echo "1. Go to repository Settings -> Secrets and variables -> Actions"
-            echo "2. Add secret CLOUDFLARE_API_TOKEN (Cloudflare API Token with Workers, D1, R2, Queues, DNS, and Email Routing permissions)"
-            echo "================================================================="
-            exit 1
-          fi
+          node -e '
+          async function verifyAndResolve() {
+            const rawToken = process.env.CLOUDFLARE_API_TOKEN || "";
+            const token = rawToken.trim().replace(/^Bearer\s+/i, "");
 
-          if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo "Using explicitly configured CLOUDFLARE_ACCOUNT_ID."
-            echo "CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}" >> "$GITHUB_ENV"
-          else
-            echo "CLOUDFLARE_ACCOUNT_ID not provided. Resolving automatically from Cloudflare API..."
-            ACCOUNT_ID=$(node -e '
-              async function getAccountId() {
-                const token = process.env.CLOUDFLARE_API_TOKEN;
-                // 1. Try GET /accounts
-                try {
-                  const res = await fetch("https://api.cloudflare.com/client/v4/accounts", {
-                    headers: { Authorization: `Bearer ${token}` }
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    if (data.success && Array.isArray(data.result) && data.result.length > 0) {
-                      return data.result[0].id;
-                    }
-                  }
-                } catch {}
+            if (!token) {
+              console.error("::error::Missing CLOUDFLARE_API_TOKEN. Add it to GitHub repository secrets (Settings -> Secrets and variables -> Actions).");
+              console.error("\n=================================================================");
+              console.error("❌ REQUIRED SECRET NOT FOUND: CLOUDFLARE_API_TOKEN");
+              console.error("1. Go to repository Settings -> Secrets and variables -> Actions");
+              console.error("2. Add secret CLOUDFLARE_API_TOKEN (Cloudflare API Token with Workers, D1, R2, Queues, DNS, and Email Routing permissions)");
+              console.error("=================================================================\n");
+              process.exit(1);
+            }
 
-                // 2. Try GET /zones
-                try {
-                  const res = await fetch("https://api.cloudflare.com/client/v4/zones", {
-                    headers: { Authorization: `Bearer ${token}` }
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    if (data.success && Array.isArray(data.result) && data.result[0]?.account?.id) {
-                      return data.result[0].account.id;
-                    }
-                  }
-                } catch {}
+            // 1. Verify token status
+            console.log("🔑 Verifying Cloudflare API Token...");
+            let verifyData = null;
+            try {
+              const verifyRes = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              verifyData = await verifyRes.json();
 
-                return "";
+              if (!verifyRes.ok || !verifyData.success || verifyData.result?.status !== "active") {
+                const errMsg = verifyData?.errors?.map(e => `[Code ${e.code}] ${e.message}`).join("; ") || verifyRes.statusText || "Token verification failed";
+                console.error("::error::Cloudflare API Token verification failed: " + errMsg);
+                console.error("\n=================================================================");
+                console.error("❌ CLOUDFLARE API TOKEN IS INVALID OR INACTIVE");
+                console.error("HTTP Status: " + verifyRes.status + " (" + verifyRes.statusText + ")");
+                console.error("API Response: " + errMsg);
+                console.error("\nPlease check the following:");
+                console.error("1. Make sure CLOUDFLARE_API_TOKEN contains only the token secret, without \"Bearer \" prefix.");
+                console.error("2. Check that the token has not expired and has not been revoked in the Cloudflare dashboard.");
+                console.error("3. If you configured \"Client IP Address Filtering\" on the token, remove it or ensure it allows GitHub Actions runners.");
+                console.error("=================================================================\n");
+                process.exit(1);
               }
-              getAccountId().then((id) => {
-                if (id) {
-                  process.stdout.write(id);
-                } else {
-                  process.exit(1);
-                }
-              }).catch(() => process.exit(1));
-            ' || true)
 
-            if [ -n "$ACCOUNT_ID" ]; then
-              echo "✅ Successfully resolved Cloudflare Account ID: ${ACCOUNT_ID}"
-              echo "CLOUDFLARE_ACCOUNT_ID=${ACCOUNT_ID}" >> "$GITHUB_ENV"
-            else
-              echo "::warning::Could not automatically resolve Cloudflare Account ID from API token. Wrangler will attempt discovery during deploy. If it fails, add CLOUDFLARE_ACCOUNT_ID to GitHub secrets."
-            fi
-          fi
+              console.log(`✅ Cloudflare API Token is valid and active! (Token ID: ${verifyData.result.id})`);
+            } catch (err) {
+              console.error("::error::Network error while verifying Cloudflare API token: " + err.message);
+              process.exit(1);
+            }
+
+            // 2. Resolve Account ID
+            let accountId = (process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
+            let accountName = "";
+
+            if (accountId) {
+              console.log(`Using explicitly configured Account ID: ${accountId}`);
+            } else {
+              console.log("🔍 Auto-detecting Cloudflare Account ID...");
+              // Try GET /accounts
+              try {
+                const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                if (accRes.ok) {
+                  const accData = await accRes.json();
+                  if (accData.success && Array.isArray(accData.result) && accData.result.length > 0) {
+                    accountId = accData.result[0].id;
+                    accountName = accData.result[0].name || "";
+                  }
+                }
+              } catch {}
+
+              // Try GET /zones fallback
+              if (!accountId) {
+                try {
+                  const zoneRes = await fetch("https://api.cloudflare.com/client/v4/zones", {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  if (zoneRes.ok) {
+                    const zoneData = await zoneRes.json();
+                    if (zoneData.success && Array.isArray(zoneData.result) && zoneData.result[0]?.account?.id) {
+                      accountId = zoneData.result[0].account.id;
+                      accountName = zoneData.result[0].account.name || "";
+                    }
+                  }
+                } catch {}
+              }
+            }
+
+            if (accountId) {
+              console.log(`✅ Target Cloudflare Account: ${accountName ? accountName + " " : ""}(${accountId})`);
+              const fs = await import("node:fs");
+              if (process.env.GITHUB_ENV) {
+                fs.appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_ACCOUNT_ID=${accountId}\n`);
+              }
+            } else {
+              console.warn("::warning::Could not automatically detect Account ID from token. Wrangler will attempt discovery during deploy. If it fails, add CLOUDFLARE_ACCOUNT_ID to GitHub secrets.");
+            }
+          }
+
+          verifyAndResolve().catch((err) => {
+            console.error("::error::Unexpected error: " + err.message);
+            process.exit(1);
+          });
+          '
 
       - name: Install dependencies
         run: npm ci
