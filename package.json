@@ -3,26 +3,26 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "build:next": "next build",
+    "dev": "npm run db:bundle && next dev",
+    "build": "npm run db:bundle && next build",
+    "build:next": "npm run db:bundle && next build",
     "start": "next start",
     "lint": "eslint .",
-    "deploy": "opennextjs-cloudflare build && npm run db:migrate:remote && npm run deploy:worker",
+    "deploy": "npm run db:bundle && opennextjs-cloudflare build && npm run deploy:worker",
     "deploy:worker": "OPEN_NEXT_DEPLOY=true wrangler deploy",
-    "deploy:local": "npm run build && npm run deploy",
-    "deploy:with-migrations": "npm run deploy:local",
-    "upload": "opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true wrangler versions upload",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:local": "npm run deploy",
+    "upload": "npm run db:bundle && opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true wrangler versions upload",
+    "preview": "npm run db:bundle && opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+    "db:bundle": "node scripts/generate-migration-bundle.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "migrate": "wrangler d1 migrations apply DB",
     "db:seed": "curl -X POST http://localhost:3000/api/seed",
-    "build:node": "MAILFLARE_RUNTIME=node next build && node scripts/build-server.mjs",
+    "build:node": "npm run db:bundle && MAILFLARE_RUNTIME=node next build && node scripts/build-server.mjs",
     "start:node": "MAILFLARE_RUNTIME=node NODE_ENV=production node dist/server.mjs",
-    "dev:node": "MAILFLARE_RUNTIME=node node --import tsx server/index.ts"
+    "dev:node": "npm run db:bundle && MAILFLARE_RUNTIME=node node --import tsx server/index.ts"
   },
   "cloudflare": {
     "bindings": {
@@ -39,7 +39,7 @@
         "description": "Worker name used when creating Cloudflare Email Routing rules. Set this to the deployed Worker name; if you rename the Worker, update this value too."
       },
       "GITHUB_UPDATE_TOKEN": {
-        "description": "Fine-grained GitHub token for the installation repository with Actions: write permission, Contents: write read permission. Used only by the admin update endpoint to dispatch update.yml."
+        "description": "Fine-grained GitHub token for the installation repository with Actions: write permission, Contents: write read permission. Used only by the admin update endpoint to dispatch deploy-update.yml."
       },
       "GITHUB_UPDATE_REF": {
         "description": "Optional branch used to dispatch updates. Leave blank to use the repository default branch."

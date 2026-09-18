@@ -15,7 +15,7 @@ npm run db:migrate:remote      # --remote (needs a concrete database_id in wrang
 npm run db:seed                # POST /api/seed against localhost:3000
 
 npm run deploy                 # opennextjs-cloudflare build + wrangler deploy
-npm run deploy:with-migrations # remote migrations, then deploy
+npm run deploy                 # build and deploy; migrate later from Admin settings
 npm run preview                # local OpenNext preview
 npm run cf-typegen             # regenerate cloudflare-env.d.ts from wrangler.jsonc
 ```
@@ -75,7 +75,7 @@ Auth is `CF_TOKEN` (preferred) or the legacy `CF_EMAIL` + `CF_API_KEY` pair.
 
 Schema lives in one file: `src/db/schema/index.ts` (21 tables). Migrations are generated into `drizzle/migrations/`. Note that `drizzle-kit generate` currently prompts interactively about a snapshot rename conflict, so recent migrations were hand-written to match the generated style.
 
-**`src/lib/setup/migration.ts` duplicates the entire schema as inline SQL.** `/api/setup/prepare` uses it to bootstrap an empty D1 database in one batch, then inserts every migration name into `d1_migrations` so Wrangler treats them as applied. When you add a migration you must update both places: run `db:generate`, then add the new DDL to `INITIAL_SCHEMA_SQL` and the filename to `MIGRATION_NAMES`. Omitting a name from `MIGRATION_NAMES` leaves that migration pending for a later Wrangler apply (this is how `0013_add_license_settings.sql` is currently handled).
+`npm run db:bundle` packages the SQL files for the Worker. `/api/setup/prepare` and the admin migration endpoint use the shared runner in `src/lib/migrations/service.ts`; migration files remain the only schema history to maintain. Build, deploy, preview, and development scripts generate the bundle before loading application code.
 
 The setup path only ever initializes an empty database — it refuses to touch one that already has tables.
 
@@ -118,7 +118,7 @@ Pro/Team keys are validated against Paymug (`src/lib/licenses/`); only a one-way
 
 ### Self-update
 
-The admin overview dispatches `deploy-update.yml` (constant in `src/app/api/admin/update/utils.ts`) in the installation repo, which merges the upstream default branch and applies D1 migrations. It does not build or deploy. The README refers to this workflow as `update.yml`; the code is authoritative.
+The admin overview dispatches `deploy-update.yml` (constant in `src/app/api/admin/update/utils.ts`) in the installation repo, which merges the upstream default branch and pushes it. It does not migrate, build, or deploy; the connected Cloudflare Git integration deploys the push. The admin update card separately reports and applies pending D1 migrations through the Worker binding.
 
 ## Conventions
 

@@ -37,7 +37,7 @@ Paste only the token secret into `CF_TOKEN`. Do not include the word `Bearer` an
 3. Let Mailflare check the required Cloudflare configuration and initialize the empty D1 database.
 4. Create the first admin account when prompted.
 
-The setup page initializes only a new, empty database. It never applies later migrations to an existing database.
+Setup applies the committed migrations through the Worker's D1 binding before creating the first admin account.
 
 ## Step 3: Connect your primary domain and create an account
 
@@ -61,9 +61,9 @@ npm install
 npm run deploy:local
 ```
 
-The local deploy command builds the OpenNext application, applies pending D1 migrations, and uploads the complete Worker with Wrangler. The complete Worker is required because `worker.ts` also handles inbound email, queues, scheduled backups, and the real-time Durable Object.
+The local deploy command builds and uploads the complete Worker with Wrangler. It does not modify D1. The complete Worker is required because `worker.ts` also handles inbound email, queues, scheduled backups, and the real-time Durable Object.
 
-To migrate an existing remote D1 database before deploying, use:
+For manual recovery, pending migrations can still be applied with:
 
 ```bash
 npm run db:migrate:remote
@@ -81,7 +81,15 @@ After upgrading an existing installation and confirming the cron trigger is acti
 
 ## Updating Mailflare
 
-The **Update Mailflare** button in the admin dashboard dispatches `.github/workflows/update.yml` in the installation repository. The workflow merges the latest upstream source, applies pending D1 migrations, and pushes the updated source. A connected Cloudflare Git integration can then build and deploy the change.
+The **Update Mailflare** button in the admin dashboard dispatches `.github/workflows/deploy-update.yml` in the installation repository. The workflow merges the latest upstream source and pushes the updated source. A connected Cloudflare Git integration then builds and deploys the change.
+
+Deployment and database migration are separate. After Cloudflare deploys a repository push or an admin-triggered update, open or refresh **Admin settings**. The application update card shows any pending database migrations. Select **Update database** to apply them through the Worker's D1 binding. The same runner initializes a new database during setup.
+
+If the Cloudflare dashboard has a custom deploy command containing `wrangler d1 migrations apply DB --remote`, remove that part and use `npm run deploy`.
+
+Each migration and its `d1_migrations` history entry run in one D1 batch. If a migration fails, its changes are rolled back, the failed filename is shown, and it can be retried after the problem is corrected. Wrangler remains available as a manual recovery tool.
+
+New application releases must remain compatible with the previous schema until an administrator applies their migrations. Prefer additive changes, keep old columns during the transition, and avoid making authentication or the admin settings page depend immediately on a newly added column. Plan a maintenance window for an incompatible schema change.
 
 Configure these Worker values:
 
@@ -89,18 +97,13 @@ Configure these Worker values:
 - `GITHUB_UPDATE_REPO` — the installation repository in `owner/repository` format.
 - `GITHUB_UPDATE_REF` — an optional update branch. The repository's default branch is used when omitted.
 
-Configure these GitHub Actions repository secrets:
-
-- `CLOUDFLARE_API_TOKEN` — a Cloudflare token allowed to read and migrate D1.
-- `CLOUDFLARE_ACCOUNT_ID` — the Cloudflare account ID.
-- `MAILFLARE_UPSTREAM_TOKEN` — required only when the upstream repository is private.
-
 Optional repository variables:
 
-- `MAILFLARE_UPSTREAM_REPOSITORY` — the upstream repository. Defaults to `hieunc229/mailflare`.
-- `MAILFLARE_UPSTREAM_BRANCH` — the upstream branch. Defaults to `main`.
+- `UPDATE_SOURCE_REPOSITORY` — the upstream repository. Defaults to `hieunc229/mailflare`.
 
-If an older installation contains a failing updater, copy the latest `.github/workflows/update.yml` into that installation once. An updater that cannot read upstream cannot update its own workflow.
+If an older installation still runs migrations in its updater, copy the latest `.github/workflows/deploy-update.yml` into that installation once. A workflow already running cannot update itself before executing its old migration step.
+
+When adding a schema change, create a new uniquely named SQL file in `drizzle/migrations` and do not edit an applied migration. Build and development commands generate the Worker migration bundle from those files. `npm run db:bundle` can generate it explicitly.
 
 ## Branding license
 

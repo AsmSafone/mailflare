@@ -14,3 +14,11 @@ export interface UpdateWorkflowResponse {
 	runUrl?: string;
 	workflowRunId?: number;
 }
+
+export interface MigrationStatusResponse {
+	applied?: string[];
+	error?: string;
+	pending: string[];
+	ready: boolean;
+	unknown: string[];
+}
